@@ -52,13 +52,23 @@ logger.info("Application initialized. Log file is active.")
 
 # --- Layout Config ---
 st.set_page_config(page_title="Rosette 🌌 | Quantitative Finance", layout="wide", page_icon="🌌")
-try:
-    st.image("assets/rosette_banner.png", use_container_width=True)
-except Exception:
-    pass
-st.title("Rosette: Algorithmic Trading Engine")
+
+# Main Header with Logo
+col_title, col_logo = st.columns([8, 1])
+with col_title:
+    st.title("Rosette: Algorithmic Trading Workspace")
+with col_logo:
+    try:
+        st.image("assets/rosette_logo.png", use_container_width=True)
+    except Exception:
+        pass
 
 # --- Sidebar ---
+try:
+    st.sidebar.image("assets/rosette_banner.png", use_container_width=True)
+except Exception:
+    pass
+
 st.sidebar.header("🚀 Rosette Control Panel")
 if st.sidebar.button("🛑 Stop Local Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
     st.sidebar.warning("Shutting down the server...")
