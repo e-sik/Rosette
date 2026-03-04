@@ -25,6 +25,9 @@ def purge_old_files(directories, days=7):
         for filename in os.listdir(directory):
             filepath = os.path.join(directory, filename)
             if os.path.isfile(filepath):
+                # Never delete the persistent benchmark dataset
+                if filename == "benchmark_nifty50.csv":
+                    continue
                 # Check last modification time
                 if os.path.getmtime(filepath) < (current_time - threshold):
                     try:
@@ -536,7 +539,54 @@ stats = bt.run()
                         stats['_trades'].to_csv(trades_file, index=False)
                         st.success(f"Trades saved to `results/{os.path.basename(trades_file)}`")
                         
-                    # 5. Plot rendering
+                    # 5. Alpha Comparison
+                    st.subheader("Benchmark Alpha Comparison")
+                    benchmark_path = "data/benchmark_nifty50.csv"
+                    
+                    if os.path.exists(benchmark_path) and '_equity_curve' in stats:
+                        try:
+                            # Load Benchmark
+                            bm_df = pd.read_csv(benchmark_path, index_col=0, parse_dates=True)
+                            
+                            # Extract Strategy Equity
+                            strat_equity = stats['_equity_curve']['Equity']
+                            
+                            # Reindex Benchmark to perfectly match strategy date points (forward filling missing granularity)
+                            bm_aligned = bm_df['Close'].reindex(strat_equity.index, method='ffill')
+                            
+                            # Drop any NaNs from the very beginning if benchmark started later than strategy (rare)
+                            valid_start = bm_aligned.first_valid_index()
+                            
+                            if valid_start:
+                                strat_eq_clean = strat_equity.loc[valid_start:]
+                                bm_clean = bm_aligned.loc[valid_start:]
+                                
+                                # Normalize both to start at 0%
+                                strat_ret_pct = (strat_eq_clean / strat_eq_clean.iloc[0] - 1) * 100
+                                bm_ret_pct = (bm_clean / bm_clean.iloc[0] - 1) * 100
+                                
+                                # Compile for rendering
+                                alpha_df = pd.DataFrame({
+                                    'Strategy Return (%)': strat_ret_pct,
+                                    'Nifty 50 Benchmark (%)': bm_ret_pct
+                                })
+                                
+                                final_alpha = strat_ret_pct.iloc[-1] - bm_ret_pct.iloc[-1]
+                                a_col1, a_col2 = st.columns([8, 2])
+                                with a_col1:
+                                    st.line_chart(alpha_df, use_container_width=True)
+                                with a_col2:
+                                    st.metric("Strategy Total", f"{strat_ret_pct.iloc[-1]:.2f}%")
+                                    st.metric("Benchmark Total", f"{bm_ret_pct.iloc[-1]:.2f}%")
+                                    st.metric("Net Alpha", f"{final_alpha:.2f}%", delta=f"{final_alpha:.2f}%")
+                            else:
+                                st.warning("Strategy dates are completely outside the Nifty 50 benchmark range.")
+                        except Exception as alpha_err:
+                            st.warning(f"Failed to generate Alpha chart: {alpha_err}")
+                    else:
+                        st.info("Nifty 50 benchmark data missing. Skipping alpha compilation.")
+                        
+                    # 6. Plot rendering
                     st.subheader("Interactive Chart")
                     plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
                     
