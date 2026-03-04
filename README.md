@@ -12,6 +12,20 @@ A comprehensive Python-based workspace designed to quickly fetch historical mark
 * **Result Comparison**: Natively compare and visually analyze saved historical runs side-by-side.
 * **Interactive Charting**: Implements interactive `Bokeh` web charts overlaid with your trades, returns, indicators, and volume straight in the browser.
 * **Live Paper Trading**: Spawn decoupled background daemons (`paper_engine.py`) to run your strategies natively on live-updating tickers without locking your Streamlit dashboard.
+* **Benchmark Alpha Comparison**: Automatically overlays your Strategy Equity curve against a persistent Daily Nifty 50 Buy-and-Hold baseline to visualize true outperformance.
+
+## 🏗️ System Architecture
+
+![Rosette Architecture Setup](assets/rosette_architecture.png)
+
+## 🧰 Core Dependencies & Engine
+
+Rosette is built on a highly optimized, modern Python stack:
+- **[Streamlit](https://streamlit.io/)**: Powers the entire reactive frontend UI, dashboard, and parameter grids.
+- **[Backtesting.py](https://kernc.github.io/backtesting.py/)**: The core execution engine. It provides the `Strategy` classes and ultra-fast vectorized backtesting logic that powers every historical run inside Tab 3 and Tab 5.
+- **[tvDatafeed](https://github.com/rongardF/tvdatafeed)**: Bypasses broker APIs to natively download highly accurate intraday/daily bars directly from TradingView.
+- **[Bokeh](https://bokeh.org/)**: The underlying visualization library used by `backtesting.py` to render the interactive HTML charts.
+- **[Pandas](https://pandas.pydata.org/)**: Used extensively for heavy dataframe manipulation, time-series masking, and data re-indexing.
 
 ## 📁 Project Structure
 
@@ -58,6 +72,7 @@ python -m streamlit run app.py
    - Select multiple past runs using the multi-selector to view their performance metrics side-by-side in a comparative table.
    - Select an individual run to render its saved interactive HTML chart natively within the dashboard.
 5. **Bulk Testing (`Tab 5`)**: Automatically evaluate a strategy across hundreds of discrete timeframes.
+   - **Capability**: Fights overfitting by segmenting your data into time chunks.
    - Use the **DateTime Mask** to precisely limit the dataset, then select a grouping rule (`Daily`, `Weekly`, `Monthly`, or custom `Intraday Time Windows`).
    - The engine automatically isolates the data, runs an independent backtest on each slice, and ranks the most profitable slices in a unified matrix.
    - Final matrices are automatically saved explicitly to the `bulk_results/` directory.
@@ -68,10 +83,10 @@ python -m streamlit run app.py
    - Winning parameters, grids, and rendering charts are saved to an isolated `opt_results/` directory to prevent clogging your normal backtest results folder.
 7. **Paper Trading Engine (`Tab 7`)**: Test your algorithms in real-time.
    - Select a Live Data Source (`TradingView` or `Yahoo Finance`), your ticker, and your Strategy.
-   - The UI spawns a powerful, decoupled Python `subprocess` that runs in the background exactly like a live crypto trading bot. It automatically fetches new bars based on your Delay setting.
+   - The UI spawns a powerful, decoupled Python `subprocess` that runs in the background exactly like a live crypto/stock trading bot. It automatically fetches new bars based on your Delay setting.
    - The **Active Engines Dashboard** parses the background JSON state, presenting you with your Live Net Equity, Open Positions, and an auto-updating Interactive Plot!
 
-Every test automatically generates a `_stats.csv` and interactive `_plot.html` inside the `results/` folder for historical record-keeping.
+*Note: Every test automatically generates a `_stats.csv` and interactive `_plot.html` inside the `results/` folder for historical record-keeping. Storage is managed via a rolling 7-Day automated archival purge on server start.*
 
 ## 🔮 Future Development Guidelines
 
