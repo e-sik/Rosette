@@ -51,11 +51,15 @@ logger = logging.getLogger(__name__)
 logger.info("Application initialized. Log file is active.")
 
 # --- Layout Config ---
-st.set_page_config(page_title="Trading Backtester", layout="wide")
-st.title("Algorithmic Trading Backtester")
+st.set_page_config(page_title="Rosette 🌌 | Quantitative Finance", layout="wide", page_icon="🌌")
+try:
+    st.image("assets/rosette_banner.png", use_container_width=True)
+except Exception:
+    pass
+st.title("Rosette: Algorithmic Trading Engine")
 
 # --- Sidebar ---
-st.sidebar.header("Control Panel")
+st.sidebar.header("🚀 Rosette Control Panel")
 if st.sidebar.button("🛑 Stop Local Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
     st.sidebar.warning("Shutting down the server...")
     logger.info("Server stopped manually via sidebar button.")

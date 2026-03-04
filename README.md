@@ -1,4 +1,4 @@
-# Algorithmic Trading Backtester Workspace
+# Rosette 🌌 | Algorithmic Trading Workspace
 
 A comprehensive Python-based workspace designed to quickly fetch historical market data, easily write diverse trading strategies, and execute lightning-fast backtests with a rich graphical user interface.
 
@@ -16,10 +16,11 @@ A comprehensive Python-based workspace designed to quickly fetch historical mark
 ## 📁 Project Structure
 
 ```text
-e:\AI\Trade\Antigravity\
+e:\AI\Trade\Rosette\
 ├── app.py                # Main Streamlit Dashboard Application
 ├── fetch_data.py         # Standalone logic used to connect and pull TVData 
 ├── test_backtest.py      # A small functional test to verify dependencies 
+├── assets/               # Image assets for the Rosette UI
 ├── data/                 # Store all fetched historical ticker `.csv` datasets
 ├── strategies/           # Directory where your custom `.py` strategies are saved
 ├── results/              # Directory where execution stats and HTML charts are automatically exported
@@ -40,7 +41,7 @@ pip install streamlit backtesting pandas bokeh git+https://github.com/rongardF/t
 The entire workflow is driven via the browser dashboard. Once your environment is active, start the Streamlit server using python:
 
 ```bash
-cd e:\AI\Trade\Antigravity
+cd e:\AI\Trade\Rosette
 python -m streamlit run app.py
 ```
 
