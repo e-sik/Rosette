@@ -10,7 +10,8 @@ A comprehensive Python-based workspace designed to quickly fetch historical mark
 * **Execution Override**: Use the advanced UI block to dynamically test parameters and change strategy conditions on-the-fly (`bt.optimize()`).
 * **Date Slicing**: Automatically detect Date columns in your data and slice the execution to specific timeframes natively in the UI.
 * **Result Comparison**: Natively compare and visually analyze saved historical runs side-by-side.
-* **Interactive Charting**: Implements interactive `Bokeh` web charts overlaid with your trades, returns, indicators, and volume straight in the browser. 
+* **Interactive Charting**: Implements interactive `Bokeh` web charts overlaid with your trades, returns, indicators, and volume straight in the browser.
+* **Live Paper Trading**: Spawn decoupled background daemons (`paper_engine.py`) to run your strategies natively on live-updating tickers without locking your Streamlit dashboard.
 
 ## 📁 Project Structure
 
@@ -64,6 +65,10 @@ python -m streamlit run app.py
    - Restrict your optimization to localized timeframes using the embedded **DateTime Mask**.
    - Choose between **Grid Search (Brute Force)** to systematically test every single combination, or **SMBO (Machine Learning via scikit-optimize/sambo)** to intelligently dial-in variables extremely fast.
    - Winning parameters, grids, and rendering charts are saved to an isolated `opt_results/` directory to prevent clogging your normal backtest results folder.
+7. **Paper Trading Engine (`Tab 7`)**: Test your algorithms in real-time.
+   - Select a Live Data Source (`TradingView` or `Yahoo Finance`), your ticker, and your Strategy.
+   - The UI spawns a powerful, decoupled Python `subprocess` that runs in the background exactly like a live crypto trading bot. It automatically fetches new bars based on your Delay setting.
+   - The **Active Engines Dashboard** parses the background JSON state, presenting you with your Live Net Equity, Open Positions, and an auto-updating Interactive Plot!
 
 Every test automatically generates a `_stats.csv` and interactive `_plot.html` inside the `results/` folder for historical record-keeping.
 
@@ -71,6 +76,6 @@ Every test automatically generates a `_stats.csv` and interactive `_plot.html` i
 
 For further expansion, consider incorporating these features using the provided scaffolding:
 
-- **Expand Data Sources**: Enhance `fetch_data.py` to optionally pull `.csv` sets from alternatives like Yahoo Finance (`yfinance`) or active brokers (Alpaca / Interactive Brokers).
+- **Expand Data Sources**: Enhance `fetch_data.py` to optionally pull `.csv` sets from alternatives like active brokers (Alpaca / Interactive Brokers).
 - **In-App Optimization Charts**: Extract the Heatmap functions contained inside the `refernce/d2_optimization.ipynb` sample to render optimization surfaces natively within the Streamlit dashboard on Tab 3.
-- **Paper Trading Engine**: Instead of strictly `backtesting`, bind the strategy interface to WebSockets to deploy live alerts.
+- **SaaS Migration**: Integrate authentication and block storage to support multiple users natively on cloud hosting (see `analysis_results.md`).
