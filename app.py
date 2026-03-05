@@ -1233,7 +1233,7 @@ with tab7:
             
             pt_init_cash = st.number_input("Initial Cash", min_value=1, value=10000, step=1000, key="pt_cash")
             pt_commission = st.number_input("Commission (e.g., 0.002 = 0.2%)", min_value=0.0, max_value=0.1, value=0.0, step=0.001, format="%.4f", key="pt_comm")
-            pt_poll_delay = st.slider("Poll Delay (Seconds)", min_value=3, max_value=60, value=5, help="How often the daemon fetches new data.", key="pt_delay")
+            pt_poll_delay = st.slider("Poll Delay (Seconds)", min_value=3, max_value=86400, value=60, help="How often the daemon fetches new data (e.g., 3600 = Hourly, 86400 = Daily).", key="pt_delay")
     
         if st.button("▶ Start Engine", type="primary"):
             if not selected_pt_strat:
