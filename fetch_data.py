@@ -20,14 +20,29 @@ fh.setFormatter(formatter)
 if not logger.handlers:
     logger.addHandler(fh)
 
+# Cache TvDatafeed client globally to prevent rate limits inside the background daemons
+_TV_CLIENT = None
+
 def fetch_tradingview(symbol, exchange, interval_enum, start_date=None, end_date=None):
     """Fetches maximum data from TradingView and slices locally saving to CSV."""
-    logger.info(f"Initializing TvDatafeed for {symbol}")
-    tv = TvDatafeed()
+    global _TV_CLIENT
     
+    if _TV_CLIENT is None:
+        logger.info(f"Initializing global TvDatafeed client...")
+        try:
+            _TV_CLIENT = TvDatafeed()
+        except Exception as e:
+            err = f"Failed to initialize Global TvDatafeed: {e}"
+            logger.error(err)
+            return None, err
+            
     max_bars = 50000
     logger.info(f"Fetching max payload ({max_bars} bars) for {exchange}:{symbol} at {interval_enum.name} interval...")
-    df = tv.get_hist(symbol=symbol, exchange=exchange, interval=interval_enum, n_bars=max_bars)
+    try:
+        df = _TV_CLIENT.get_hist(symbol=symbol, exchange=exchange, interval=interval_enum, n_bars=max_bars)
+    except Exception as e:
+        logger.error(f"Network exception during fetch: {e}")
+        return None, str(e)
     
     if df is None or df.empty:
         err = f"Failed to fetch data for {symbol} via TradingView."

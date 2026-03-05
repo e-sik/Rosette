@@ -1206,8 +1206,12 @@ with tab7:
     st.header("⏱️ Paper Trading Engine (Background Daemon)")
     st.write("Run your strategy on live-updating data natively in the background. You can navigate away from this tab while engines run.")
     
+    results_dir = "results"
+    os.makedirs(results_dir, exist_ok=True)
+    state_files = [f for f in os.listdir(results_dir) if f.startswith('pt_state_') and f.endswith('.json')]
+    
     # 1. Start New Engine Form
-    with st.expander("🚀 Launch New Paper Trading Engine", expanded=True):
+    with st.expander("🚀 Launch New Paper Trading Engine", expanded=len(state_files) == 0):
         col1, col2 = st.columns(2)
         with col1:
             pt_source_opt = st.selectbox("Live Data Source", ["TradingView", "Yahoo Finance"], key="pt_source")
@@ -1260,10 +1264,6 @@ with tab7:
     
     # 2. Active Dashboards
     st.subheader("🖥️ Active Engines Dashboard")
-    
-    results_dir = "results"
-    os.makedirs(results_dir, exist_ok=True)
-    state_files = [f for f in os.listdir(results_dir) if f.startswith('pt_state_') and f.endswith('.json')]
     
     col_ref, col_spacer = st.columns([1, 5])
     if col_ref.button("🔄 Refresh Dashboard"):
