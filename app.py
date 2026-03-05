@@ -548,11 +548,13 @@ stats = bt.run()
                         try:
                             # Load Benchmark
                             bm_df = pd.read_csv(benchmark_path, index_col=0, parse_dates=True)
+                            bm_df.index = pd.to_datetime(bm_df.index, utc=True).tz_localize(None)
                             bm_df.sort_index(inplace=True)
                             bm_df = bm_df[~bm_df.index.duplicated(keep='last')]
                             
                             # Extract Strategy Equity
                             strat_equity = stats['_equity_curve']['Equity']
+                            strat_equity.index = pd.to_datetime(strat_equity.index, utc=True).tz_localize(None)
                             strat_equity = strat_equity[~strat_equity.index.duplicated(keep='last')].sort_index()
                             
                             # Reindex Benchmark to perfectly match strategy date points (forward filling missing granularity)
