@@ -85,6 +85,11 @@ python -m streamlit run app.py
    - Select a Live Data Source (`TradingView` or `Yahoo Finance`), your ticker, and your Strategy.
    - The UI spawns a powerful, decoupled Python `subprocess` that runs in the background exactly like a live crypto/stock trading bot. It automatically fetches new bars based on your Delay setting.
    - The **Active Engines Dashboard** parses the background JSON state, presenting you with your Live Net Equity, Open Positions, and an auto-updating Interactive Plot!
+8. **Monte Carlo Analysis (`Tab 8`)**: Stress-test your strategy by simulating thousands of different trade sequences.
+   - Select a previously run backtest's trade ledger to analyze sequence risk.
+   - Configure the number of simulations, starting capital, and confidence level.
+   - View an interactive 'Spaghetti Plot' of all simulated equity curves to understand potential drawdowns visually.
+   - Get an automated **Comparative Verdict** that cross-references your original backtest's drawdown with the simulated median, warning you if your initial backtest was "lucky" and indicating your actual Value at Risk (VaR).
 
 *Note: Every test automatically generates a `_stats.csv` and interactive `_plot.html` inside the `results/` folder for historical record-keeping. Storage is managed via a rolling 7-Day automated archival purge on server start.*
 

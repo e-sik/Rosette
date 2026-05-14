@@ -1,3 +1,4 @@
+import numpy as np
 import streamlit as st
 import streamlit.components.v1 as components
 import os
@@ -100,7 +101,7 @@ def load_strategy(filepath):
     return None
 
 # --- Tabs ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["📊 Fetch Data", "📝 Strategy Editor", "⚙️ Run Backtest", "📈 Compare Results", "🔄 Bulk Testing", "🎯 Optimize Parameters", "⏱️ Paper Trading"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📊 Fetch Data", "📝 Strategy Editor", "⚙️ Run Backtest", "📈 Compare Results", "🔄 Bulk Testing", "🎯 Optimize Parameters", "⏱️ Paper Trading", "🎲 Monte Carlo Analysis"])
 
 # --- TAB 1: Data Fetching ---
 with tab1:
@@ -1338,3 +1339,193 @@ with tab7:
                     if c_del.button(f"🗑️ Clean up `{sym}` Dashboard", key=f"del_{sym}"):
                         os.remove(state_path)
                         st.rerun()
+
+# --- TAB 8: Monte Carlo Analysis ---
+with tab8:
+    st.header("🎲 Monte Carlo Risk Analysis")
+    st.write("Stress-test your strategy by shuffling trade sequences to simulate thousands of 'what-if' market scenarios.")
+    
+    results_dir = "results"
+    trade_files = []
+    if os.path.exists(results_dir):
+        trade_files = [f for f in os.listdir(results_dir) if f.endswith('_trades.csv')]
+        
+    if not trade_files:
+        st.info("No trade ledgers found. Run a backtest in Tab 3 first to generate data.")
+    else:
+        mc_col1, mc_col2 = st.columns([1, 1])
+        
+        with mc_col1:
+            selected_mc_file = st.selectbox("Select Trade Ledger:", trade_files)
+            n_simulations = st.slider("Number of Simulations", min_value=100, max_value=10000, value=1000, step=100)
+            
+        with mc_col2:
+            start_capital = st.number_input("Simulation Start Capital ($)", min_value=100, value=10000, step=1000)
+            confidence_level = st.slider("Confidence Level (%)", min_value=80, max_value=99, value=95)
+
+        if st.button("🎲 Run Monte Carlo Simulation", type="primary", use_container_width=True):
+            try:
+                # 1. Load Trades
+                trades_df = pd.read_csv(os.path.join(results_dir, selected_mc_file))
+                
+                # We use ReturnPct (percentage) for shuffling as it's independent of absolute capital
+                if 'ReturnPct' not in trades_df.columns:
+                    st.error("The selected ledger does not contain 'ReturnPct' data. Please run a new backtest.")
+                    st.stop()
+                
+                # Convert percentage to decimal (e.g. 2.5 -> 0.025)
+                returns = trades_df['ReturnPct'].values / 100.0
+                
+                if len(returns) < 5:
+                    st.warning("Too few trades to run a meaningful simulation. Need at least 5 trades.")
+                    st.stop()
+
+                # 2. Run Simulations
+                with st.spinner(f"Simulating {n_simulations} sequences..."):
+                    all_eq_curves = []
+                    max_dds = []
+                    final_vals = []
+                    
+                    for _ in range(n_simulations):
+                        # Shuffle with replacement (Bootstrapping)
+                        shuffled_rets = np.random.choice(returns, size=len(returns), replace=True)
+                        
+                        # Calculate compounding equity
+                        # Equity_n = Start * Product(1 + r_i)
+                        eq_curve = start_capital * np.cumprod(1 + shuffled_rets)
+                        eq_curve = np.insert(eq_curve, 0, start_capital)
+                        
+                        all_eq_curves.append(eq_curve)
+                        
+                        # Max Drawdown calculation
+                        peak = np.maximum.accumulate(eq_curve)
+                        dd = (eq_curve - peak) / peak
+                        max_dds.append(np.min(dd) * 100) # Store as %
+                        
+                        final_vals.append(eq_curve[-1])
+
+                # 3. Analyze Results
+                st.divider()
+                st.subheader("🏁 Comparative Verdict")
+                
+                # Try to load the original stats for comparison
+                original_dd = None
+                stats_file_name = selected_mc_file.replace('_trades.csv', '_stats.csv')
+                stats_path = os.path.join(results_dir, stats_file_name)
+                
+                if os.path.exists(stats_path):
+                    try:
+                        orig_stats = pd.read_csv(stats_path, index_col=0)
+                        # The column name is usually '0' or matching the run name
+                        original_dd = float(orig_stats.loc['Max. Drawdown [%]'].iloc[0])
+                    except:
+                        pass
+                
+                avg_final = np.mean(final_vals)
+                median_dd = np.median(max_dds)
+                var_dd = np.percentile(max_dds, 100 - confidence_level) # 95% Var
+                
+                v_col1, v_col2 = st.columns([2, 1])
+                
+                with v_col1:
+                    if original_dd is not None:
+                        diff = median_dd - original_dd
+                        if diff < -5: # Median is much worse (more negative)
+                            st.warning(f"### Verdict: **Sequence Luck Detected** ⚠️")
+                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) was significantly luckier than the average simulation (Median DD: **{median_dd:.2f}%**). The order of trades in your backtest was ideal and likely won't repeat. Expect deeper drawdowns in live trading.")
+                        elif diff > 5: # Median is much better
+                            st.success(f"### Verdict: **Pessimistic Backtest** 🛡️")
+                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) was actually 'unlucky'. Most simulations (Median DD: **{median_dd:.2f}%**) show a smoother path. Your strategy is likely more robust than your single test suggests.")
+                        else:
+                            st.info(f"### Verdict: **Statistically Robust** ✅")
+                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) is very close to the simulated median (DD: **{median_dd:.2f}%**). This suggests your results are not dependent on trade sequence and are highly reliable.")
+                    else:
+                        st.info("Original stats file not found for comparison. Running independent analysis.")
+
+                with v_col2:
+                    st.write("**Key Comparison**")
+                    if original_dd is not None:
+                        st.metric("Original Max DD", f"{original_dd:.2f}%")
+                    st.metric("Median Simulated DD", f"{median_dd:.2f}%", delta=f"{median_dd - (original_dd if original_dd else 0):.2f}%", delta_color="inverse")
+                
+                st.divider()
+                st.subheader("Detailed Metrics")
+                m1, m2, m3 = st.columns(3)
+                m1.metric("Expected Final Equity", f"${avg_final:,.2f}")
+                m2.metric("Median Max Drawdown", f"{median_dd:.2f}%")
+                m3.metric(f"{confidence_level}% Probable Max DD (VaR)", f"{var_dd:.2f}%")
+
+                # 4. Visualization
+                st.divider()
+                viz_col1, viz_col2 = st.columns([3, 2])
+                
+                with viz_col1:
+                    st.write("### Equity Curve 'Spaghetti' Plot")
+                    st.caption(f"Showing 50 random samples out of {n_simulations} simulations.")
+                    
+                    # Prepare data for plotting
+                    sample_indices = np.random.choice(range(n_simulations), min(50, n_simulations), replace=False)
+                    
+                    from bokeh.plotting import figure
+                    from bokeh.models import NumeralTickFormatter
+                    from bokeh.embed import file_html
+                    from bokeh.resources import CDN
+                    
+                    p_mc = figure(title="Simulated Equity Paths", 
+                                 x_axis_label='Trade Number', 
+                                 y_axis_label='Equity ($)',
+                                 tools="pan,box_zoom,reset,save",
+                                 active_drag="box_zoom",
+                                 height=450,
+                                 sizing_mode="stretch_width")
+                    
+                    # --- Dark Mode Styling ---
+                    p_mc.background_fill_color = "#0e1117"
+                    p_mc.border_fill_color = "#0e1117"
+                    p_mc.title.text_color = "white"
+                    p_mc.xaxis.axis_label_text_color = "white"
+                    p_mc.yaxis.axis_label_text_color = "white"
+                    p_mc.xaxis.major_label_text_color = "white"
+                    p_mc.yaxis.major_label_text_color = "white"
+                    p_mc.grid.grid_line_color = "#333333"
+                    # -------------------------
+
+                    # Add each sample path
+                    for idx in sample_indices:
+                        curve = all_eq_curves[idx]
+                        p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
+                    
+                    # Highlight the average path in a different color
+                    avg_curve = np.mean(all_eq_curves, axis=0)
+                    p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
+                    
+                    p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
+                    p_mc.legend.location = "top_left"
+                    p_mc.legend.click_policy = "hide"
+                    p_mc.legend.background_fill_color = "#0e1117"
+                    p_mc.legend.label_text_color = "white"
+                    p_mc.legend.background_fill_alpha = 0.8
+                    
+                    # Convert Bokeh figure to HTML string and render
+                    mc_html = file_html(p_mc, CDN, "Monte Carlo Spaghetti Plot")
+                    components.html(mc_html, height=480)
+                    
+                with viz_col2:
+                    st.write("### Max Drawdown Distribution")
+                    st.caption("Distribution of worst-case drawdowns across all simulations.")
+                    
+                    # Create a clean histogram
+                    counts, bin_edges = np.histogram(max_dds, bins=25)
+                    # Round bin edges for cleaner X-axis labels
+                    bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+                    
+                    hist_df = pd.DataFrame({
+                        'Drawdown Probability': counts
+                    }, index=bin_labels)
+                    
+                    st.bar_chart(hist_df, use_container_width=True)
+
+                st.info("💡 **Insight:** If your 'Original Backtest' Max Drawdown was much lower than the 'Median Max Drawdown' shown here, your backtest was likely 'lucky' with the order of trades. Plan your risk based on the Monte Carlo results instead.")
+
+            except Exception as e:
+                st.error(f"Monte Carlo simulation failed: {e}")
