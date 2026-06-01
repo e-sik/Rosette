@@ -47,7 +47,7 @@ e:\AI\Trade\Rosette\
 
 Ensure you have the required libraries installed in your Python environment. You can install everything you need using the system terminal.
 ```bash
-pip install streamlit backtesting pandas bokeh git+https://github.com/rongardF/tvdatafeed.git
+pip install streamlit streamlit-ace backtesting pandas bokeh git+https://github.com/rongardF/tvdatafeed.git
 ```
 
 ### 2. Launch the Application
@@ -62,12 +62,12 @@ python -m streamlit run app.py
 ### 3. Usage Guide
 
 1. **Fetch Data (`Tab 1`)**: Open the UI. Specify your target Symbol (e.g. `SBIN`), Exchange (`NSE`), Interval, and depth. This will download a `.csv` file into the `data/` folder.
-2. **Strategy Editor (`Tab 2`)**: Write a Python class representing your algorithm extending from `backtesting.Strategy`. Once you save it, it will be placed in the `strategies/` directory.
-   - Example strategies use `self.I()` to wrap technical indicators (like Simple Moving Averages). Check the injected default script.
-3. **Run Backtest (`Tab 3`)**: Open the execution page. Mix and match any Dataset with any Strategy. 
+2. **Strategy IDE Editor (`Tab 2`)**: Write your strategy using the integrated full-featured IDE (syntax highlighting, Vim/Emacs keybindings, adjustable font size, and visual themes).
+   - **Interactive Diagnostics**: Click "Compile & Test Strategy" to verify your code against syntax errors, validate subclass structure, and simulate a 200-day execution dry-run to identify runtime issues before saving.
+3. **Run Backtest (`Tab 3`)**: Mix and match any Dataset with any Strategy. 
    - **Date Slicer**: If a dataset has valid timestamps, a calendar view will appear allowing you to trim the backtest to a specific period.
    - **Configure Parameters**: Expand the settings to simulate leverage (`Margin`), capital (`Initial Cash`), spreads, commission sizing, and order locking.
-   - **Execution Script**: Optionally override the testing logic if you want to perform heavy optimization grids rather than single tests!
+   - **Execution Script Override**: Manually edit the final backtest execution code block inside a matching integrated Streamlit Ace editor. A global configuration synchronizes your IDE settings (theme, bindings, word wrap) across all tabs automatically.
 4. **Compare Results (`Tab 4`)**: Review your saved historical executions.
    - Select multiple past runs using the multi-selector to view their performance metrics side-by-side in a comparative table.
    - Select an individual run to render its saved interactive HTML chart natively within the dashboard.

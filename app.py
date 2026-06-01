@@ -8,8 +8,10 @@ import importlib.util
 import inspect
 import logging
 from backtesting import Strategy, Backtest
-
 import time
+import ast
+import traceback
+from streamlit_ace import st_ace
 
 # --- Logging Config ---
 LOG_DIR = "application-logs"
@@ -87,11 +89,27 @@ st.sidebar.caption("SaaS Community Edition")
 # --- Initialize Session State ---
 if 'data_fetched' not in st.session_state:
     st.session_state['data_fetched'] = False
+if 'ide_theme' not in st.session_state:
+    st.session_state['ide_theme'] = 'dracula'
+if 'ide_keybinding' not in st.session_state:
+    st.session_state['ide_keybinding'] = 'vscode'
+if 'ide_font_size' not in st.session_state:
+    st.session_state['ide_font_size'] = 14
+if 'ide_tab_size' not in st.session_state:
+    st.session_state['ide_tab_size'] = 4
+if 'ide_wrap_lines' not in st.session_state:
+    st.session_state['ide_wrap_lines'] = True
+if 'ide_show_gutter' not in st.session_state:
+    st.session_state['ide_show_gutter'] = True
 
 def load_strategy(filepath):
     """Dynamically load the user's strategy file and extract the Strategy class."""
+    if "strategy_module" in sys.modules:
+        del sys.modules["strategy_module"]
+        
     spec = importlib.util.spec_from_file_location("strategy_module", filepath)
     module = importlib.util.module_from_spec(spec)
+    sys.modules["strategy_module"] = module
     spec.loader.exec_module(module)
     
     # Find classes that inherit from Strategy
@@ -226,11 +244,134 @@ with tab1:
         except Exception as e:
             st.error(f"Could not perform Data Quality check: {e}")
 
+def run_strategy_diagnostics(code_string):
+    """Run interactive compilation, syntax structure, and dry-run tests on the strategy code."""
+    results = {
+        "syntax": {"status": "Pending", "msg": "Not started"},
+        "structure": {"status": "Pending", "msg": "Not started"},
+        "dry_run": {"status": "Pending", "msg": "Not started"},
+        "success": False
+    }
+    
+    # 1. Syntax Check
+    try:
+        ast.parse(code_string)
+        results["syntax"] = {"status": "Passed", "msg": "Python code parsed successfully."}
+    except SyntaxError as se:
+        error_msg = f"SyntaxError at line {se.lineno}, col {se.offset}: {se.msg}\n\nLine: {se.text}"
+        results["syntax"] = {"status": "Failed", "msg": error_msg}
+        return results
+    except Exception as e:
+        results["syntax"] = {"status": "Failed", "msg": f"Parser error: {str(e)}"}
+        return results
+
+    # 2. Structural & Class Inheritance Check
+    try:
+        local_scope = {
+            'Strategy': Strategy,
+            'Backtest': Backtest,
+            'pd': pd,
+            'np': np
+        }
+        
+        exec(code_string, local_scope)
+        
+        # Find Strategy class
+        strat_class = None
+        for name, obj in local_scope.items():
+            if isinstance(obj, type) and issubclass(obj, Strategy) and obj is not Strategy:
+                strat_class = obj
+                break
+                
+        if not strat_class:
+            results["structure"] = {
+                "status": "Failed",
+                "msg": "No subclass of 'backtesting.Strategy' was found in the code. Ensure you define a class (e.g., MyStrategy) that inherits from Strategy."
+            }
+            return results
+            
+        # Check methods
+        methods = dir(strat_class)
+        has_init = 'init' in methods
+        has_next = 'next' in methods
+        
+        if not has_init or not has_next:
+            missing = []
+            if not has_init: missing.append("init()")
+            if not has_next: missing.append("next()")
+            results["structure"] = {
+                "status": "Failed",
+                "msg": f"Strategy class '{strat_class.__name__}' is missing mandatory methods: {', '.join(missing)}."
+            }
+            return results
+            
+        results["structure"] = {
+            "status": "Passed",
+            "msg": f"Found valid strategy class '{strat_class.__name__}' with init() and next() methods.",
+            "class": strat_class
+        }
+    except Exception as e:
+        tb = traceback.format_exc()
+        results["structure"] = {
+            "status": "Failed",
+            "msg": f"Failed to load or execute strategy definition:\n\n{tb}"
+        }
+        return results
+
+    # 3. Dry-Run Execution Test
+    try:
+        strat_class = results["structure"]["class"]
+        
+        # Generate 200 rows of synthetic price data
+        dummy_df = pd.DataFrame({
+            'Open': np.linspace(100, 110, 200) + np.random.randn(200),
+            'High': np.linspace(101, 111, 200) + np.random.randn(200),
+            'Low': np.linspace(99, 109, 200) + np.random.randn(200),
+            'Close': np.linspace(100, 110, 200) + np.random.randn(200),
+            'Volume': [1000] * 200
+        }, index=pd.date_range(start='2026-01-01', periods=200, freq='D'))
+        
+        bt = Backtest(
+            dummy_df, 
+            strat_class, 
+            cash=10000,
+            commission=0.0, 
+            spread=0.0,
+            margin=1.0,
+            trade_on_close=False,
+            hedging=False,
+            exclusive_orders=True,
+            finalize_trades=True
+        )
+        
+        bt.run()
+        results["dry_run"] = {
+            "status": "Passed",
+            "msg": "Strategy ran successfully on 200 rows of test data with zero exceptions."
+        }
+        results["success"] = True
+    except Exception as e:
+        tb = traceback.format_exc()
+        results["dry_run"] = {
+            "status": "Failed",
+            "msg": f"Runtime error during execution simulation:\n\n{tb}"
+        }
+        
+    return results
+
 # --- TAB 2: Strategy Editor ---
 with tab2:
-    st.header("Strategy Editor")
-    st.write("Create a new strategy or edit an existing one. It must inherit from `backtesting.Strategy`.")
+    st.header("📝 Strategy IDE Editor")
+    st.write("Create a new strategy or edit an existing one. Use the integrated IDE to test for syntax and runtime errors.")
     
+    # Session state initialization for tracking edits and preventing resets
+    if 'strategy_code_state' not in st.session_state:
+        st.session_state['strategy_code_state'] = ""
+    if 'prev_selected_file' not in st.session_state:
+        st.session_state['prev_selected_file'] = None
+    if 'prev_editor_mode' not in st.session_state:
+        st.session_state['prev_editor_mode'] = None
+        
     editor_mode = st.radio("Mode:", ["Create New Strategy", "Edit Existing Strategy"], horizontal=True)
     
     strategies_dir = "strategies"
@@ -240,9 +381,7 @@ with tab2:
     strategy_code = ""
     strategy_name_input = ""
     
-    if editor_mode == "Create New Strategy":
-        strategy_name_input = st.text_input("Save Strategy As (filename without extension):", value="my_strategy")
-        strategy_code = '''from backtesting import Strategy
+    default_template = '''from backtesting import Strategy
 from backtesting.lib import crossover
 import pandas as pd
 
@@ -254,10 +393,12 @@ class MySmaCross(Strategy):
     n2 = 20
 
     def init(self):
+        # Precompute indicators
         self.sma1 = self.I(SMA, self.data.Close, self.n1)
         self.sma2 = self.I(SMA, self.data.Close, self.n2)
 
     def next(self):
+        # Entry/Exit Logic
         if crossover(self.sma1, self.sma2):
             self.position.close()
             self.buy()
@@ -265,40 +406,160 @@ class MySmaCross(Strategy):
             self.position.close()
             self.sell()
 '''
+
+    if editor_mode == "Create New Strategy":
+        strategy_name_input = st.text_input("Save Strategy As (filename without extension):", value="my_strategy")
+        if st.session_state['prev_editor_mode'] != "Create New Strategy":
+            st.session_state['strategy_code_state'] = default_template
+            st.session_state['prev_editor_mode'] = "Create New Strategy"
+            st.session_state['prev_selected_file'] = None
     else:
         strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')]
         if not strategy_files:
             st.warning("No existing strategies found in the `strategies/` directory.")
+            st.session_state['strategy_code_state'] = ""
         else:
             selected_edit_file = st.selectbox("Select Strategy to Edit:", strategy_files)
             
-            # Pre-fill name editor stripped of .py
             st.write("If you change the name below, it will save as a NEW copy instead of overwriting.")
             strategy_name_input = st.text_input("Save Strategy As (filename without extension):", value=selected_edit_file.replace('.py', ''))
             
-            # Read contents
-            edit_filepath = os.path.join(strategies_dir, selected_edit_file)
-            try:
-                with open(edit_filepath, "r", encoding="utf-8") as f:
-                    strategy_code = f.read()
-            except Exception as e:
-                st.error(f"Failed to read file: {e}")
-                strategy_code = ""
+            if st.session_state['prev_editor_mode'] != "Edit Existing Strategy" or st.session_state['prev_selected_file'] != selected_edit_file:
+                edit_filepath = os.path.join(strategies_dir, selected_edit_file)
+                try:
+                    with open(edit_filepath, "r", encoding="utf-8") as f:
+                        st.session_state['strategy_code_state'] = f.read()
+                except Exception as e:
+                    st.error(f"Failed to read file: {e}")
+                    st.session_state['strategy_code_state'] = ""
+                st.session_state['prev_editor_mode'] = "Edit Existing Strategy"
+                st.session_state['prev_selected_file'] = selected_edit_file
 
-    # Always show code editor block
-    final_code = st.text_area("Python Code", value=strategy_code, height=400)
+    st.markdown("---")
     
-    if st.button("Save Strategy"):
-        if not strategy_name_input:
-            st.error("Please provide a filename.")
+    # 2 Columns for IDE: Left = Editor & Console, Right = Settings
+    col_editor, col_settings = st.columns([8, 3])
+    
+    with col_settings:
+        st.markdown("#### 🛠️ IDE Configuration")
+        themes_list = ["monokai", "dracula", "tomorrow_night", "twilight", "github", "tomorrow", "xcode", "solarized_dark", "solarized_light"]
+        bindings_list = ["vscode", "vim", "emacs", "sublime"]
+        
+        theme_idx = themes_list.index(st.session_state['ide_theme']) if st.session_state['ide_theme'] in themes_list else 1
+        binding_idx = bindings_list.index(st.session_state['ide_keybinding']) if st.session_state['ide_keybinding'] in bindings_list else 0
+        
+        theme = st.selectbox(
+            "Editor Theme",
+            themes_list,
+            index=theme_idx,
+            help="Choose your preferred visual styling theme."
+        )
+        st.session_state['ide_theme'] = theme
+        
+        keybinding = st.selectbox(
+            "Keybinding Model",
+            bindings_list,
+            index=binding_idx,
+            help="Choose the editor keybindings (e.g. support for vim navigation or standard vscode bindings)."
+        )
+        st.session_state['ide_keybinding'] = keybinding
+        
+        font_size = st.slider("Font Size", 10, 24, st.session_state['ide_font_size'], step=1)
+        st.session_state['ide_font_size'] = font_size
+        
+        tab_size_idx = [2, 4, 8].index(st.session_state['ide_tab_size']) if st.session_state['ide_tab_size'] in [2, 4, 8] else 1
+        tab_size = st.selectbox("Tab Width", [2, 4, 8], index=tab_size_idx)
+        st.session_state['ide_tab_size'] = tab_size
+        
+        wrap_lines = st.checkbox("Word Wrap", value=st.session_state['ide_wrap_lines'])
+        st.session_state['ide_wrap_lines'] = wrap_lines
+        
+        show_gutter = st.checkbox("Show Line Numbers", value=st.session_state['ide_show_gutter'])
+        st.session_state['ide_show_gutter'] = show_gutter
+        
+    with col_editor:
+        st.markdown("#### 💻 Source Code")
+        # Render the custom streamlit-ace editor
+        final_code = st_ace(
+            value=st.session_state['strategy_code_state'],
+            language="python",
+            theme=st.session_state['ide_theme'],
+            keybinding=st.session_state['ide_keybinding'],
+            font_size=st.session_state['ide_font_size'],
+            tab_size=st.session_state['ide_tab_size'],
+            wrap=st.session_state['ide_wrap_lines'],
+            show_gutter=st.session_state['ide_show_gutter'],
+            height=450,
+            auto_update=False,  # Update code on blur/save to avoid redraw latency while typing
+            key="strategy_ace_editor"
+        )
+        
+        # Keep code state updated
+        st.session_state['strategy_code_state'] = final_code
+        
+        btn_col1, btn_col2 = st.columns(2)
+        with btn_col1:
+            test_btn = st.button("🧪 Compile & Test Strategy", use_container_width=True)
+        with btn_col2:
+            save_btn = st.button("💾 Save Strategy Code", type="primary", use_container_width=True)
+            
+        # Diagnostics Trigger
+        if test_btn:
+            with st.spinner("Running syntax & runtime sanity tests..."):
+                diagnostics_results = run_strategy_diagnostics(final_code)
+                st.session_state['editor_diagnostics'] = diagnostics_results
+                
+        # Save Trigger
+        if save_btn:
+            if not strategy_name_input:
+                st.error("Please provide a filename.")
+            else:
+                filename = os.path.join(strategies_dir, f"{strategy_name_input}.py")
+                try:
+                    with open(filename, "w", encoding="utf-8") as f:
+                        f.write(final_code)
+                    st.success(f"Strategy successfully saved to `{filename}`")
+                    # Clear prev state so it forces re-read of newly saved strategy (especially if renamed)
+                    st.session_state['prev_selected_file'] = f"{strategy_name_input}.py"
+                    time.sleep(1)
+                    st.rerun()
+                except Exception as e:
+                    st.error(f"Failed to save strategy: {e}")
+
+    # Diagnostics Console Rendering (Always visible below if ran)
+    if 'editor_diagnostics' in st.session_state:
+        st.divider()
+        diag = st.session_state['editor_diagnostics']
+        st.subheader("🖥️ IDE Diagnostics Console")
+        
+        # Status Badges
+        c1, c2, c3 = st.columns(3)
+        
+        def render_indicator(name, step_data):
+            status = step_data["status"]
+            if status == "Passed":
+                st.success(f"✅ {name}: Passed")
+            elif status == "Failed":
+                st.error(f"❌ {name}: Failed")
+            else:
+                st.info(f"⚪ {name}: Pending")
+                
+        with c1:
+            render_indicator("Syntax Compiler Check", diag["syntax"])
+        with c2:
+            render_indicator("Strategy Subclass & Method Check", diag["structure"])
+        with c3:
+            render_indicator("Mock execution (200 Days Dry-Run)", diag["dry_run"])
+            
+        # Failure Traceback / Console Log
+        if not diag["success"]:
+            st.markdown("### 🛑 Compilation & Runtime Diagnostics")
+            for step in ["syntax", "structure", "dry_run"]:
+                if diag[step]["status"] == "Failed":
+                    st.error(f"Error in step: **{step.replace('_', ' ').title()}**")
+                    st.code(diag[step]["msg"], language="text")
         else:
-            filename = os.path.join(strategies_dir, f"{strategy_name_input}.py")
-            try:
-                with open(filename, "w", encoding="utf-8") as f:
-                    f.write(final_code)
-                st.success(f"Strategy saved to `{filename}`")
-            except Exception as e:
-                st.error(f"Failed to save strategy: {e}")
+            st.success("🎉 Excellent! Your trading strategy is 100% syntactically correct and passed the mock backtest simulator execution with 0 errors. It is ready for historical backtesting.")
 
 # --- TAB 3: Run Backtest ---
 with tab3:
@@ -423,7 +684,29 @@ stats = bt.run()
 
 # Alternatively, you can use bt.optimize() here instead if you want to optimize parameters.
 """
-    exec_code = st.text_area("Execution Code Override", value=default_exec_code.strip(), height=250)
+    if 'exec_code_state' not in st.session_state:
+        st.session_state['exec_code_state'] = default_exec_code.strip()
+
+    exec_code = st_ace(
+        value=st.session_state['exec_code_state'],
+        language="python",
+        theme=st.session_state.get('ide_theme', 'dracula'),
+        keybinding=st.session_state.get('ide_keybinding', 'vscode'),
+        font_size=st.session_state.get('ide_font_size', 14),
+        tab_size=st.session_state.get('ide_tab_size', 4),
+        wrap=st.session_state.get('ide_wrap_lines', True),
+        show_gutter=st.session_state.get('ide_show_gutter', True),
+        height=280,
+        auto_update=False,
+        key="backtest_execution_editor"
+    )
+    st.session_state['exec_code_state'] = exec_code
+    
+    col_reset, col_spacer = st.columns([4, 6])
+    with col_reset:
+        if st.button("🔄 Reset Script to Default"):
+            st.session_state['exec_code_state'] = default_exec_code.strip()
+            st.rerun()
     
     if st.button("▶ Run Script", type="primary", use_container_width=True):
         if selected_data and selected_strategy_file:
