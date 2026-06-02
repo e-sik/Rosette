@@ -13,6 +13,8 @@ A comprehensive Python-based workspace designed to quickly fetch historical mark
 * **Interactive Charting**: Implements interactive `Bokeh` web charts overlaid with your trades, returns, indicators, and volume straight in the browser.
 * **Live Paper Trading**: Spawn decoupled background daemons (`paper_engine.py`) to run your strategies natively on live-updating tickers without locking your Streamlit dashboard.
 * **Benchmark Alpha Comparison**: Automatically overlays your Strategy Equity curve against a persistent Daily Nifty 50 Buy-and-Hold baseline to visualize true outperformance.
+* **Timeframe Resampling**: Convert granular (e.g. 5-minute) datasets into higher timeframes (`15T`, `30T`, `1H`, `4H`, `1D`) on-the-fly in Backtesting, Bulk Testing, and Optimization tabs.
+* **Execution Scale Estimation**: Live calculation and display of the projected count of backtests to run in Bulk Testing (broken down per dataset) to help prevent long execution hangs.
 
 ## 🏗️ System Architecture
 
@@ -66,14 +68,16 @@ python -m streamlit run app.py
    - **Interactive Diagnostics**: Click "Compile & Test Strategy" to verify your code against syntax errors, validate subclass structure, and simulate a 200-day execution dry-run to identify runtime issues before saving.
 3. **Run Backtest (`Tab 3`)**: Mix and match any Dataset with any Strategy. 
    - **Date Slicer**: If a dataset has valid timestamps, a calendar view will appear allowing you to trim the backtest to a specific period.
+   - **Timeframe Resampling**: Dynamically resample granular data to a higher timeframe (`15 Min`, `1 Hour`, `1 Day`, etc.) prior to backtest execution.
    - **Configure Parameters**: Expand the settings to simulate leverage (`Margin`), capital (`Initial Cash`), spreads, commission sizing, and order locking.
    - **Execution Script Override**: Manually edit the final backtest execution code block inside a matching integrated Streamlit Ace editor. A global configuration synchronizes your IDE settings (theme, bindings, word wrap) across all tabs automatically.
 4. **Compare Results (`Tab 4`)**: Review your saved historical executions.
    - Select multiple past runs using the multi-selector to view their performance metrics side-by-side in a comparative table.
    - Select an individual run to render its saved interactive HTML chart natively within the dashboard.
-5. **Bulk Testing (`Tab 5`)**: Automatically evaluate a strategy across hundreds of discrete timeframes.
+5. **Bulk Testing (`Tab 5`)**: Automatically evaluate a strategy across hundreds of discrete timeframes or candle intervals.
    - **Capability**: Fights overfitting by segmenting your data into time chunks.
-   - Use the **DateTime Mask** to precisely limit the dataset, then select a grouping rule (`Daily`, `Weekly`, `Monthly`, or custom `Intraday Time Windows`).
+   - Use the **DateTime Mask** to precisely limit the dataset, then select a grouping rule (`Daily`, `Weekly`, `Monthly`, `Intraday Time Windows`, or `Resample Timeframes`).
+   - **Scale Estimation**: View the live projected test count and per-dataset breakdown before starting, along with warning notices for high execution scales (>100 runs).
    - The engine automatically isolates the data, runs an independent backtest on each slice, and ranks the most profitable slices in a unified matrix.
    - Final matrices are automatically saved explicitly to the `bulk_results/` directory.
 6. **Optimize Parameters (`Tab 6`)**: Automatically dial in your strategy variables.

@@ -102,6 +102,9 @@ if 'ide_wrap_lines' not in st.session_state:
 if 'ide_show_gutter' not in st.session_state:
     st.session_state['ide_show_gutter'] = True
 
+# Global fallback for timeframe resampling (avoids NameError in optimization/other tabs)
+resample_tf = "No Resampling (Use Native)"
+
 def load_strategy(filepath):
     """Dynamically load the user's strategy file and extract the Strategy class."""
     if "strategy_module" in sys.modules:
@@ -579,6 +582,13 @@ with tab3:
         else:
             selected_data = st.selectbox("Dataset (CSV)", data_files)
             
+            # Timeframe resampling option
+            resample_tf = st.selectbox(
+                "Resample Timeframe (Before Backtesting)",
+                ["No Resampling (Use Native)", "5 Min ('5T')", "15 Min ('15T')", "30 Min ('30T')", "1 Hour ('1H')", "4 Hours ('4H')", "1 Day ('1D')"],
+                help="Resample the granular dataset to a higher timeframe before running the strategy."
+            )
+            
             # --- Date Slicer UI ---
             if selected_data:
                 try:
@@ -750,6 +760,34 @@ stats = bt.run()
                                     st.stop()
                             except Exception as e:
                                 st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
+                                
+                        # Apply Timeframe Resampling
+                        if resample_tf != "No Resampling (Use Native)":
+                            tf_map = {
+                                "5 Min ('5T')": "5T",
+                                "15 Min ('15T')": "15T",
+                                "30 Min ('30T')": "30T",
+                                "1 Hour ('1H')": "1H",
+                                "4 Hours ('4H')": "4H",
+                                "1 Day ('1D')": "1D"
+                            }
+                            rule = tf_map.get(resample_tf)
+                            if rule:
+                                try:
+                                    resample_dict = {}
+                                    if 'Open' in df.columns: resample_dict['Open'] = 'first'
+                                    if 'High' in df.columns: resample_dict['High'] = 'max'
+                                    if 'Low' in df.columns: resample_dict['Low'] = 'min'
+                                    if 'Close' in df.columns: resample_dict['Close'] = 'last'
+                                    if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
+                                    for col in df.columns:
+                                        if col not in resample_dict:
+                                            resample_dict[col] = 'first'
+                                    df = df.resample(rule).agg(resample_dict).dropna()
+                                    st.info(f"Resampled dataset to `{rule}` timeframe. New shape: {df.shape}")
+                                except Exception as resample_err:
+                                    st.warning(f"Failed to resample: {resample_err}. Running on native data.")
+                                    
                     elif not pd.api.types.is_datetime64_any_dtype(df.index):
                         st.warning("Could not identify a clear Datetime column. The backtester index might be missing timestamps.")
                         
@@ -1044,7 +1082,7 @@ with tab5:
         strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')] if os.path.exists(strategies_dir) else []
         selected_bulk_strat = st.selectbox("Select Strategy", strategy_files, key="bulk_strat")
         
-    split_freq = st.selectbox("Split Dataset By:", ["Whole Dataset (No Split)", "Daily", "Weekly", "Monthly", "Intraday (Time Windows)"], help="Choose 'Whole Dataset' to test across the entire filtered date range without breaking it down. Select 'Intraday' to test specific hours within each day.")
+    split_freq = st.selectbox("Split Dataset By:", ["Whole Dataset (No Split)", "Daily", "Weekly", "Monthly", "Intraday (Time Windows)", "Resample Timeframes"], help="Choose 'Whole Dataset' to test across the entire filtered date range without breaking it down. Select 'Intraday' to test specific hours within each day. Select 'Resample Timeframes' to test across multiple candle intervals.")
     
     # Intraday dynamic UI
     intraday_windows = []
@@ -1060,11 +1098,91 @@ with tab5:
                 w_end = st.time_input(f"Window {w+1} End", value=datetime.time(10 + w, 0), key=f"w_e_{w}")
             intraday_windows.append((w_start, w_end))
             
+    # Resample Timeframes dynamic UI
+    bulk_resample_tfs = []
+    if split_freq == "Resample Timeframes":
+        st.markdown("**Select Timeframes to Test**")
+        tf_options = {
+            "5 Min ('5T')": "5T",
+            "15 Min ('15T')": "15T",
+            "30 Min ('30T')": "30T",
+            "1 Hour ('1H')": "1H",
+            "4 Hours ('4H')": "4H",
+            "1 Day ('1D')": "1D"
+        }
+        selected_tf_labels = st.multiselect(
+            "Timeframes to Evaluate",
+            options=list(tf_options.keys()),
+            default=["5 Min ('5T')", "15 Min ('15T')", "1 Hour ('1H')", "1 Day ('1D')"],
+            help="Select one or more timeframes to resample the granular dataset into."
+        )
+        bulk_resample_tfs = [tf_options[lbl] for lbl in selected_tf_labels]
+            
     st.markdown("**(Uses the Advanced Parameters currently set in Tab 3 `Run Backtest`)**")
     
+    # Estimate test count
+    total_tests = 0
+    test_details = []
+    if selected_bulk_data:
+        for ds in selected_bulk_data:
+            try:
+                # Read only index/datetime column for speed
+                df_temp = pd.read_csv(os.path.join(data_dir, ds), nrows=5)
+                df_temp.columns = df_temp.columns.str.strip()
+                dt_col = next((c for c in df_temp.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
+                if dt_col:
+                    df_ds = pd.read_csv(os.path.join(data_dir, ds), usecols=[dt_col])
+                    df_ds.columns = df_ds.columns.str.strip()
+                    df_ds[dt_col] = pd.to_datetime(df_ds[dt_col], format='mixed')
+                    df_ds.set_index(dt_col, inplace=True)
+                    
+                    if start_datetime_bulk and end_datetime_bulk:
+                        start_dt_pd = pd.to_datetime(start_datetime_bulk)
+                        end_dt_pd = pd.to_datetime(end_datetime_bulk)
+                        df_ds = df_ds.loc[(df_ds.index >= start_dt_pd) & (df_ds.index <= end_dt_pd)]
+                    
+                    if split_freq == "Whole Dataset (No Split)":
+                        count = 1
+                    elif split_freq == "Daily":
+                        count = len(df_ds.index.normalize().unique())
+                    elif split_freq == "Weekly":
+                        count = len(df_ds.groupby([df_ds.index.isocalendar().year, df_ds.index.isocalendar().week]))
+                    elif split_freq == "Monthly":
+                        count = len(df_ds.groupby([df_ds.index.year, df_ds.index.month]))
+                    elif split_freq == "Intraday (Time Windows)":
+                        num_days = len(df_ds.index.normalize().unique())
+                        count = num_days * len(intraday_windows)
+                    elif split_freq == "Resample Timeframes":
+                        count = len(bulk_resample_tfs)
+                    else:
+                        count = 0
+                    
+                    total_tests += count
+                    test_details.append(f"• `{ds}`: **{count}** tests")
+                else:
+                    test_details.append(f"• `{ds}`: Datetime column not found")
+            except Exception as e:
+                test_details.append(f"• `{ds}`: Error estimating ({e})")
+                
+        # Display the scale estimation
+        st.markdown("### 📊 Bulk Backtest Scale Estimate")
+        col_scale1, col_scale2 = st.columns([4, 6])
+        with col_scale1:
+            st.metric("Total Projected Runs", f"{total_tests}")
+        with col_scale2:
+            st.markdown("**Runs Breakdown:**")
+            for detail in test_details:
+                st.markdown(detail)
+                
+        if total_tests > 100:
+            st.warning("⚠️ **Warning:** Running over 100 backtests might take some time depending on hardware and dataset size.")
+        st.markdown("---")
+        
     if st.button("▶ Run Bulk Test", type="primary", use_container_width=True):
         if not selected_bulk_data or not selected_bulk_strat:
             st.error("Please select at least one dataset and a strategy.")
+        elif split_freq == "Resample Timeframes" and not bulk_resample_tfs:
+            st.error("Please select at least one timeframe to test.")
         else:
             with st.spinner(f"Running Bulk {split_freq} tests across {len(selected_bulk_data)} datasets..."):
                 try:
@@ -1152,6 +1270,24 @@ with tab5:
                                             chunks.append((label, window_df))
                                     except Exception as e:
                                         st.warning(f"Failed to slice window {s_str}-{e_str} on {date}: {e}")
+                        elif split_freq == "Resample Timeframes":
+                            for tf in bulk_resample_tfs:
+                                try:
+                                    resample_dict = {}
+                                    if 'Open' in df.columns: resample_dict['Open'] = 'first'
+                                    if 'High' in df.columns: resample_dict['High'] = 'max'
+                                    if 'Low' in df.columns: resample_dict['Low'] = 'min'
+                                    if 'Close' in df.columns: resample_dict['Close'] = 'last'
+                                    if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
+                                    for col in df.columns:
+                                        if col not in resample_dict:
+                                            resample_dict[col] = 'first'
+                                            
+                                    resampled_df = df.resample(tf).agg(resample_dict).dropna()
+                                    if not resampled_df.empty:
+                                        chunks.append((f"{sym_name} | TF: {tf}", resampled_df))
+                                except Exception as e:
+                                    st.warning(f"Failed to resample `{dataset_file}` to `{tf}`: {e}")
                         
                         if not chunks:
                             st.warning(f"No valid data chunks found to process in `{dataset_file}`.")
@@ -1400,6 +1536,33 @@ with tab6:
                                             st.stop()
                                     except Exception as e:
                                         st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
+                                
+                                # Apply Timeframe Resampling
+                                if resample_tf != "No Resampling (Use Native)":
+                                    tf_map = {
+                                        "5 Min ('5T')": "5T",
+                                        "15 Min ('15T')": "15T",
+                                        "30 Min ('30T')": "30T",
+                                        "1 Hour ('1H')": "1H",
+                                        "4 Hours ('4H')": "4H",
+                                        "1 Day ('1D')": "1D"
+                                    }
+                                    rule = tf_map.get(resample_tf)
+                                    if rule:
+                                        try:
+                                            resample_dict = {}
+                                            if 'Open' in df.columns: resample_dict['Open'] = 'first'
+                                            if 'High' in df.columns: resample_dict['High'] = 'max'
+                                            if 'Low' in df.columns: resample_dict['Low'] = 'min'
+                                            if 'Close' in df.columns: resample_dict['Close'] = 'last'
+                                            if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
+                                            for col in df.columns:
+                                                if col not in resample_dict:
+                                                    resample_dict[col] = 'first'
+                                            df = df.resample(rule).agg(resample_dict).dropna()
+                                            st.info(f"Resampled dataset to `{rule}` timeframe. New shape: {df.shape}")
+                                        except Exception as resample_err:
+                                            st.warning(f"Failed to resample: {resample_err}. Running on native data.")
                                 
                                 # 2. Prepare Engine
                                 bt = Backtest(
