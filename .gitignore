@@ -38,7 +38,6 @@ venv.bak/
 # Project Specific
 data/
 results/
-bulk_results/
 opt_results/
 application-logs/
 __pycache__/

@@ -41,7 +41,7 @@ def purge_old_files(directories, days=7):
                         print(f"Failed to purge {filepath}: {e}")
 
 # Run archival purge on startup across all caching directories (7 days retention)
-purge_old_files([LOG_DIR, "data", "results", "bulk_results", "opt_results"], days=7)
+purge_old_files([LOG_DIR, "data", "results", "opt_results"], days=7)
 
 # Configure the root logger to catch all events, including from imported modules
 logging.basicConfig(
@@ -58,17 +58,118 @@ logger = logging.getLogger(__name__)
 logger.info("Application initialized. Log file is active.")
 
 # --- Layout Config ---
-st.set_page_config(page_title="Rosette 🌌 | Quantitative Finance", layout="wide", page_icon="🌌")
+st.set_page_config(page_title="Rosette | Quantitative Finance", layout="wide", page_icon="assets/rosette_logo.png")
 
-# Main Header with Logo
-col_title, col_logo = st.columns([8, 1])
-with col_title:
-    st.title("Rosette: Algorithmic Trading Workspace")
-with col_logo:
-    try:
-        st.image("assets/rosette_logo.png", use_container_width=True)
-    except Exception:
-        pass
+# --- Custom CSS for Professional Layout ---
+st.markdown("""
+<style>
+    /* Compact the main content area — enough room for header to breathe */
+    .block-container { padding-top: 1.5rem !important; padding-bottom: 0rem !important; }
+    
+    /* Elegant top bar */
+    .rosette-header {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 0.6rem 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        margin-bottom: 1rem;
+    }
+    .rosette-header img {
+        height: 28px;
+        width: 28px;
+        border-radius: 6px;
+    }
+    .rosette-header .title {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #fafafa;
+        letter-spacing: -0.02em;
+        font-family: 'Inter', 'Segoe UI', sans-serif;
+    }
+    .rosette-header .sep {
+        color: rgba(255, 255, 255, 0.15);
+        font-size: 1.2rem;
+        font-weight: 300;
+    }
+    .rosette-header .subtitle {
+        font-size: 0.8rem;
+        color: rgba(255, 255, 255, 0.4);
+        font-weight: 400;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+    }
+    
+    /* Tighten tab spacing */
+    .stTabs [data-baseweb="tab-list"] { gap: 0px; }
+    .stTabs [data-baseweb="tab"] {
+        padding: 8px 16px;
+        font-size: 0.82rem;
+        font-weight: 500;
+    }
+    
+    /* Metric cards */
+    [data-testid="stMetric"] {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 8px;
+        padding: 12px 16px;
+    }
+    [data-testid="stMetricLabel"] {
+        font-size: 0.72rem !important;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: rgba(255, 255, 255, 0.5) !important;
+    }
+    [data-testid="stMetricValue"] {
+        font-size: 1.3rem !important;
+        font-weight: 600;
+    }
+    
+    /* Expander refinement */
+    .streamlit-expanderHeader {
+        font-size: 0.85rem;
+        font-weight: 500;
+    }
+    
+    /* Sidebar refinement */
+    section[data-testid="stSidebar"] {
+        padding-top: 1rem;
+    }
+    section[data-testid="stSidebar"] .block-container {
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Table/dataframe styling */
+    .stDataFrame { border-radius: 8px; overflow: hidden; }
+    
+    /* Subheader spacing */
+    h2 { margin-top: 0.5rem !important; margin-bottom: 0.25rem !important; }
+    h3 { margin-top: 0.5rem !important; margin-bottom: 0.25rem !important; }
+    
+    /* Divider spacing */
+    hr { margin: 0.75rem 0 !important; }
+</style>
+""", unsafe_allow_html=True)
+
+# --- Compact Header ---
+import base64 as _b64
+_logo_b64 = ""
+try:
+    with open("assets/rosette_logo.png", "rb") as _f:
+        _logo_b64 = _b64.b64encode(_f.read()).decode()
+except Exception:
+    pass
+
+_logo_tag = f'<img src="data:image/png;base64,{_logo_b64}" alt="">' if _logo_b64 else ""
+st.markdown(f"""
+<div class="rosette-header">
+    {_logo_tag}
+    <span class="title">Rosette</span>
+    <span class="sep">|</span>
+    <span class="subtitle">Algorithmic Trading Workspace</span>
+</div>
+""", unsafe_allow_html=True)
 
 # --- Sidebar ---
 try:
@@ -76,15 +177,15 @@ try:
 except Exception:
     pass
 
-st.sidebar.header("🚀 Rosette Control Panel")
-if st.sidebar.button("🛑 Stop Local Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
+st.sidebar.header("Control Panel")
+if st.sidebar.button("Stop Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
     st.sidebar.warning("Shutting down the server...")
     logger.info("Server stopped manually via sidebar button.")
     os._exit(0)
 
 st.sidebar.divider()
-st.sidebar.info("📦 **Data Archival Policy**\n\nTo ensure peak performance, all Data, Backtest Results, and interactive Charts are automatically pruned and deleted after **7 Days** of inactivity.")
-st.sidebar.caption("SaaS Community Edition")
+st.sidebar.info("**Data Archival Policy**\n\nAll Data, Backtest Results, and Charts are automatically pruned after **7 Days** of inactivity.")
+st.sidebar.caption("Community Edition")
 
 # --- Initialize Session State ---
 if 'data_fetched' not in st.session_state:
@@ -121,8 +222,314 @@ def load_strategy(filepath):
             return obj
     return None
 
+# --- Strategy Evaluation & Risk Helpers ---
+def calculate_strategy_metrics(stats, trades_df):
+    """
+    Extracts and calculates the standardized institutional-grade metrics.
+    Ensures safe division and formats values properly.
+    """
+    if stats is None:
+        stats = {}
+        
+    metrics = {}
+    
+    # 1. Absolute Returns
+    metrics['Cumulative Return [%]'] = float(stats.get('Return [%]', 0.0))
+    metrics['Annualized Return [%]'] = float(stats.get('Return (Ann.) [%]', 0.0))
+    metrics['Final Equity [$]'] = float(stats.get('Equity Final [$]', 0.0))
+    
+    # 2. Risk & Exposure
+    metrics['Max Drawdown [%]'] = float(stats.get('Max. Drawdown [%]', 0.0))
+    metrics['Avg Drawdown [%]'] = float(stats.get('Avg. Drawdown [%]', 0.0))
+    
+    # Max Drawdown Duration could be a Timedelta or string, convert to string
+    metrics['Max Drawdown Duration'] = str(stats.get('Max. Drawdown Duration', '0 days'))
+    metrics['Exposure Time [%]'] = float(stats.get('Exposure Time [%]', 0.0))
+    
+    # 3. Risk-Adjusted Ratios
+    metrics['Sharpe Ratio'] = float(stats.get('Sharpe Ratio', 0.0))
+    if np.isnan(metrics['Sharpe Ratio']) or np.isinf(metrics['Sharpe Ratio']):
+        metrics['Sharpe Ratio'] = 0.0
+        
+    metrics['Sortino Ratio'] = float(stats.get('Sortino Ratio', 0.0))
+    if np.isnan(metrics['Sortino Ratio']) or np.isinf(metrics['Sortino Ratio']):
+        metrics['Sortino Ratio'] = 0.0
+        
+    metrics['Calmar Ratio'] = float(stats.get('Calmar Ratio', 0.0))
+    if np.isnan(metrics['Calmar Ratio']) or np.isinf(metrics['Calmar Ratio']):
+        metrics['Calmar Ratio'] = 0.0
+        
+    # 4. Trade Efficiency & Statistics
+    metrics['Total Trades'] = int(stats.get('# Trades', 0))
+    metrics['Win Rate [%]'] = float(stats.get('Win Rate [%]', 0.0))
+    
+    avg_win = 0.0
+    avg_loss = 0.0
+    profit_factor = 0.0
+    expectancy = 0.0
+    
+    if trades_df is not None and not trades_df.empty:
+        # Standardize column casing
+        trades_df.columns = trades_df.columns.str.strip()
+        ret_col = next((c for c in trades_df.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
+        pnl_col = next((c for c in trades_df.columns if c.lower() in ['pnl', 'p_n_l', 'profit_loss']), None)
+        
+        metrics['Total Trades'] = len(trades_df)
+        
+        if ret_col:
+            win_trades = trades_df[trades_df[ret_col] > 0]
+            loss_trades = trades_df[trades_df[ret_col] < 0]
+            
+            # Update win rate
+            metrics['Win Rate [%]'] = (len(win_trades) / len(trades_df)) * 100.0
+            
+            avg_win = float(win_trades[ret_col].mean()) if not win_trades.empty else 0.0
+            avg_loss = float(abs(loss_trades[ret_col].mean())) if not loss_trades.empty else 0.0
+            
+            gross_profit = float(win_trades[pnl_col].sum()) if (pnl_col and not win_trades.empty) else 0.0
+            gross_loss = float(abs(loss_trades[pnl_col].sum())) if (pnl_col and not loss_trades.empty) else 0.0
+            
+            if gross_profit == 0.0 and gross_loss == 0.0:
+                gross_profit = float(win_trades[ret_col].sum()) if not win_trades.empty else 0.0
+                gross_loss = float(abs(loss_trades[ret_col].sum())) if not loss_trades.empty else 0.0
+                
+            profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+            
+            win_rate = len(win_trades) / len(trades_df)
+            loss_rate = len(loss_trades) / len(trades_df)
+            expectancy = (win_rate * avg_win) - (loss_rate * avg_loss)
+            
+            is_empty_stats = False
+            if stats is None:
+                is_empty_stats = True
+            elif isinstance(stats, dict):
+                is_empty_stats = (len(stats) == 0)
+            elif hasattr(stats, 'empty'):
+                is_empty_stats = stats.empty
+
+            if is_empty_stats:
+                if pnl_col:
+                    total_pnl = trades_df[pnl_col].sum()
+                    metrics['Cumulative Return [%]'] = total_pnl
+    else:
+        profit_factor = float(stats.get('Profit Factor', 0.0))
+        if np.isnan(profit_factor) or np.isinf(profit_factor):
+            profit_factor = 0.0
+            
+    metrics['Profit Factor'] = profit_factor
+    metrics['Avg Win [%]'] = avg_win
+    metrics['Avg Loss [%]'] = avg_loss
+    metrics['P/L Ratio'] = avg_win / avg_loss if avg_loss > 0 else 0.0
+    metrics['Expectancy [%]'] = expectancy
+    
+    return metrics
+
+def run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=10000):
+    """
+    Runs a vectorized Monte Carlo simulation by shuffling returns.
+    """
+    if len(returns) < 5:
+        return None
+        
+    shuffled_rets = np.random.choice(returns, size=(n_simulations, len(returns)), replace=True)
+    compounded = np.cumprod(1 + shuffled_rets, axis=1)
+    
+    # Insert start capital at the beginning of each curve
+    all_curves = np.hstack([np.ones((n_simulations, 1)) * start_capital, start_capital * compounded])
+    
+    peaks = np.maximum.accumulate(all_curves, axis=1)
+    drawdowns = (all_curves - peaks) / peaks
+    max_dds = np.min(drawdowns, axis=1) * 100.0  # %
+    
+    final_vals = all_curves[:, -1]
+    
+    return {
+        'curves': all_curves,
+        'max_dds': max_dds,
+        'final_vals': final_vals,
+        'expected_final_equity': float(np.mean(final_vals)),
+        'median_max_drawdown': float(np.median(max_dds)),
+        'var_max_drawdown': float(np.percentile(max_dds, 100 - confidence_level))
+    }
+
+def get_monte_carlo_verdict(original_dd, median_dd):
+    if original_dd is None:
+        return "Independent Analysis", "info"
+    
+    # Make original drawdown negative if it is stored as positive
+    orig_dd_neg = -abs(original_dd)
+    med_dd_neg = -abs(median_dd)
+    
+    diff = med_dd_neg - orig_dd_neg  # median - original
+    if diff < -5:  # median is much worse (e.g. -25% vs -15%)
+        return "Sequence Luck Detected", "warning"
+    elif diff > 5:  # median is much better (e.g. -10% vs -20%)
+        return "Pessimistic Backtest", "success"
+    else:
+        return "Statistically Robust", "info"
+
+def render_unified_dashboard(run_name, metrics, trades_df, plot_html_path, mc_results):
+    """
+    Renders the unified strategy evaluation and risk dashboard in Streamlit.
+    """
+    st.markdown(f"## Performance & Risk: `{run_name}`")
+    
+    # 1. Header & Summary Metrics
+    c1, c2, c3, c4, c5, c6 = st.columns(6)
+    
+    cagr = metrics.get('Annualized Return [%]', 0.0)
+    pf = metrics.get('Profit Factor', 0.0)
+    max_dd = metrics.get('Max Drawdown [%]', 0.0)
+    win_rate = metrics.get('Win Rate [%]', 0.0)
+    sortino = metrics.get('Sortino Ratio', 0.0)
+    
+    orig_dd = metrics.get('Max Drawdown [%]', None)
+    median_dd = mc_results.get('median_max_drawdown', 0.0) if mc_results else 0.0
+    verdict, verdict_type = get_monte_carlo_verdict(orig_dd, median_dd)
+    
+    c1.metric("CAGR (Ann. Return)", f"{cagr:.2f}%")
+    c2.metric("Profit Factor", f"{pf:.2f}")
+    c3.metric("Max Drawdown", f"{max_dd:.2f}%")
+    c4.metric("Win Rate", f"{win_rate:.2f}%")
+    c5.metric("Sortino Ratio", f"{sortino:.2f}")
+    
+    with c6:
+        st.write("**Monte Carlo Verdict**")
+        if verdict_type == "success":
+            st.success(verdict)
+        elif verdict_type == "warning":
+            st.warning(verdict)
+        else:
+            st.info(verdict)
+            
+    st.divider()
+    
+    # 2. Detailed Performance Table
+    with st.expander("View Complete Strategy Evaluation Metrics", expanded=False):
+        m_col1, m_col2 = st.columns(2)
+        with m_col1:
+            st.markdown("**Absolute Performance**")
+            st.write(f"- **Cumulative Return:** {metrics.get('Cumulative Return [%]', 0.0):.2f}%")
+            st.write(f"- **Annualized Return (CAGR):** {metrics.get('Annualized Return [%]', 0.0):.2f}%")
+            st.write(f"- **Final Equity:** ${metrics.get('Final Equity [$]', 0.0):,.2f}")
+            
+            st.markdown("**Risk-Adjusted Ratios**")
+            st.write(f"- **Sharpe Ratio:** {metrics.get('Sharpe Ratio', 0.0):.2f}")
+            st.write(f"- **Sortino Ratio:** {metrics.get('Sortino Ratio', 0.0):.2f}")
+            st.write(f"- **Calmar Ratio:** {metrics.get('Calmar Ratio', 0.0):.2f}")
+            
+        with m_col2:
+            st.markdown("**Risk & Exposure**")
+            st.write(f"- **Max Drawdown:** {metrics.get('Max Drawdown [%]', 0.0):.2f}%")
+            st.write(f"- **Average Drawdown:** {metrics.get('Avg Drawdown [%]', 0.0):.2f}%")
+            st.write(f"- **Max Drawdown Duration:** {metrics.get('Max Drawdown Duration', 'N/A')}")
+            st.write(f"- **Exposure Time (Time in Market):** {metrics.get('Exposure Time [%]', 0.0):.2f}%")
+            
+            st.markdown("**Trade Statistics**")
+            st.write(f"- **Total Trades:** {metrics.get('Total Trades', 0)}")
+            st.write(f"- **Win Rate:** {metrics.get('Win Rate [%]', 0.0):.2f}%")
+            st.write(f"- **Profit/Loss Ratio:** {metrics.get('P/L Ratio', 0.0):.2f} (Avg Win: {metrics.get('Avg Win [%]', 0.0):.2f}%, Avg Loss: {metrics.get('Avg Loss [%]', 0.0):.2f}%)")
+            st.write(f"- **Expectancy per Trade:** {metrics.get('Expectancy [%]', 0.0):.4f}%")
+            
+    st.divider()
+    
+    # 3. Monte Carlo Analysis Visualizations
+    if mc_results:
+        st.subheader("Monte Carlo Risk & Robustness Analysis")
+        mc_col1, mc_col2 = st.columns([3, 2])
+        
+        with mc_col1:
+            st.markdown("### Equity Curve 'Spaghetti' Plot")
+            st.caption("Showing 50 random simulated paths out of all simulations. The cyan line shows the Average Path.")
+            
+            n_simulations = len(mc_results['max_dds'])
+            all_eq_curves = mc_results['curves']
+            sample_indices = np.random.choice(range(n_simulations), min(50, n_simulations), replace=False)
+            
+            from bokeh.plotting import figure
+            from bokeh.models import NumeralTickFormatter
+            from bokeh.embed import file_html
+            from bokeh.resources import CDN
+            
+            p_mc = figure(title="Simulated Equity Paths", 
+                          x_axis_label='Trade Number', 
+                          y_axis_label='Equity ($)',
+                          tools="pan,box_zoom,reset,save",
+                          active_drag="box_zoom",
+                          height=400,
+                          sizing_mode="stretch_width")
+            
+            p_mc.background_fill_color = "#0e1117"
+            p_mc.border_fill_color = "#0e1117"
+            p_mc.title.text_color = "white"
+            p_mc.xaxis.axis_label_text_color = "white"
+            p_mc.yaxis.axis_label_text_color = "white"
+            p_mc.xaxis.major_label_text_color = "white"
+            p_mc.yaxis.major_label_text_color = "white"
+            p_mc.grid.grid_line_color = "#333333"
+            
+            for idx in sample_indices:
+                curve = all_eq_curves[idx]
+                p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
+                
+            avg_curve = np.mean(all_eq_curves, axis=0)
+            p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
+            
+            p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
+            p_mc.legend.location = "top_left"
+            p_mc.legend.background_fill_color = "#0e1117"
+            p_mc.legend.label_text_color = "white"
+            p_mc.legend.background_fill_alpha = 0.8
+            
+            mc_html = file_html(p_mc, CDN, "Monte Carlo Spaghetti Plot")
+            components.html(mc_html, height=430)
+            
+        with mc_col2:
+            st.markdown("### Max Drawdown Distribution")
+            st.caption("Probability distribution of worst-case drawdowns across all simulation runs.")
+            
+            st.metric("Expected Final Equity", f"${mc_results['expected_final_equity']:,.2f}")
+            st.metric("Median Simulated Drawdown", f"{mc_results['median_max_drawdown']:.2f}%")
+            st.metric("95% Probable Max DD (VaR)", f"{mc_results['var_max_drawdown']:.2f}%")
+            
+            counts, bin_edges = np.histogram(mc_results['max_dds'], bins=20)
+            bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+            hist_df = pd.DataFrame({
+                'Count': counts
+            }, index=bin_labels)
+            
+            st.bar_chart(hist_df, use_container_width=True)
+            
+        st.divider()
+        
+    # 4. Interactive Historical Chart
+    if plot_html_path and os.path.exists(plot_html_path):
+        st.subheader("Interactive Backtest Chart")
+        with open(plot_html_path, "r", encoding='utf-8') as f:
+            html_content = f.read()
+            components.html(html_content, height=700, scrolling=True)
+        st.divider()
+        
+    # 5. Detailed Trade Ledger
+    if trades_df is not None and not trades_df.empty:
+        st.subheader("Trade Ledger")
+        st.write(f"Displaying **{len(trades_df)}** trades.")
+        
+        def highlight_pnl(val):
+            try:
+                color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                return f'background-color: {color}'
+            except:
+                return ''
+                
+        pnl_col = next((c for c in trades_df.columns if c.lower() in ['pnl', 'p_n_l', 'profit_loss']), None)
+        if pnl_col:
+            st.dataframe(trades_df.style.map(highlight_pnl, subset=[pnl_col]), use_container_width=True)
+        else:
+            st.dataframe(trades_df, use_container_width=True)
+
 # --- Tabs ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7, tab8 = st.tabs(["📊 Fetch Data", "📝 Strategy Editor", "⚙️ Run Backtest", "📈 Compare Results", "🔄 Bulk Testing", "🎯 Optimize Parameters", "⏱️ Paper Trading", "🎲 Monte Carlo Analysis"])
+tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Fetch Data", "Strategy Editor", "Run Backtest", "Results & Analytics", "Bulk Testing", "Optimize Parameters", "Paper Trading"])
 
 # --- TAB 1: Data Fetching ---
 with tab1:
@@ -208,9 +615,9 @@ with tab1:
             total_issues = total_nans + zero_vols
             
             if total_issues == 0:
-                st.success(f"✅ Data Quality Check Passed! 0 missing values or zero-volume anomalies found in `{os.path.basename(fp)}`. You are ready to backtest.")
+                st.success(f"Data Quality Check Passed. 0 missing values or zero-volume anomalies found in `{os.path.basename(fp)}`. Ready to backtest.")
             else:
-                st.warning(f"⚠️ **Data Quality Issues Detected in `{os.path.basename(fp)}`!**\n\nFound {total_nans} missing (NaN) values and {zero_vols} zero-volume rows.")
+                st.warning(f"**Data Quality Issues Detected in `{os.path.basename(fp)}`.**\n\nFound {total_nans} missing (NaN) values and {zero_vols} zero-volume rows.")
                 
                 # Extract and display the bad rows
                 st.write("**Preview of rows with anomalies:**")
@@ -364,7 +771,7 @@ def run_strategy_diagnostics(code_string):
 
 # --- TAB 2: Strategy Editor ---
 with tab2:
-    st.header("📝 Strategy IDE Editor")
+    st.header("Strategy IDE")
     st.write("Create a new strategy or edit an existing one. Use the integrated IDE to test for syntax and runtime errors.")
     
     # Session state initialization for tracking edits and preventing resets
@@ -444,7 +851,7 @@ class MySmaCross(Strategy):
     col_editor, col_settings = st.columns([8, 3])
     
     with col_settings:
-        st.markdown("#### 🛠️ IDE Configuration")
+        st.markdown("#### IDE Configuration")
         themes_list = ["monokai", "dracula", "tomorrow_night", "twilight", "github", "tomorrow", "xcode", "solarized_dark", "solarized_light"]
         bindings_list = ["vscode", "vim", "emacs", "sublime"]
         
@@ -481,7 +888,7 @@ class MySmaCross(Strategy):
         st.session_state['ide_show_gutter'] = show_gutter
         
     with col_editor:
-        st.markdown("#### 💻 Source Code")
+        st.markdown("#### Source Code")
         # Render the custom streamlit-ace editor
         final_code = st_ace(
             value=st.session_state['strategy_code_state'],
@@ -502,9 +909,9 @@ class MySmaCross(Strategy):
         
         btn_col1, btn_col2 = st.columns(2)
         with btn_col1:
-            test_btn = st.button("🧪 Compile & Test Strategy", use_container_width=True)
+            test_btn = st.button("Compile & Test", use_container_width=True)
         with btn_col2:
-            save_btn = st.button("💾 Save Strategy Code", type="primary", use_container_width=True)
+            save_btn = st.button("Save Strategy", type="primary", use_container_width=True)
             
         # Diagnostics Trigger
         if test_btn:
@@ -533,7 +940,7 @@ class MySmaCross(Strategy):
     if 'editor_diagnostics' in st.session_state:
         st.divider()
         diag = st.session_state['editor_diagnostics']
-        st.subheader("🖥️ IDE Diagnostics Console")
+        st.subheader("Diagnostics Console")
         
         # Status Badges
         c1, c2, c3 = st.columns(3)
@@ -541,11 +948,11 @@ class MySmaCross(Strategy):
         def render_indicator(name, step_data):
             status = step_data["status"]
             if status == "Passed":
-                st.success(f"✅ {name}: Passed")
+                st.success(f"PASS  {name}")
             elif status == "Failed":
-                st.error(f"❌ {name}: Failed")
+                st.error(f"FAIL  {name}")
             else:
-                st.info(f"⚪ {name}: Pending")
+                st.info(f"PENDING  {name}")
                 
         with c1:
             render_indicator("Syntax Compiler Check", diag["syntax"])
@@ -556,13 +963,13 @@ class MySmaCross(Strategy):
             
         # Failure Traceback / Console Log
         if not diag["success"]:
-            st.markdown("### 🛑 Compilation & Runtime Diagnostics")
+            st.markdown("### Compilation & Runtime Diagnostics")
             for step in ["syntax", "structure", "dry_run"]:
                 if diag[step]["status"] == "Failed":
                     st.error(f"Error in step: **{step.replace('_', ' ').title()}**")
                     st.code(diag[step]["msg"], language="text")
         else:
-            st.success("🎉 Excellent! Your trading strategy is 100% syntactically correct and passed the mock backtest simulator execution with 0 errors. It is ready for historical backtesting.")
+            st.success("All checks passed. Your strategy is syntactically correct and executed successfully on the mock backtest simulator. It is ready for historical backtesting.")
 
 # --- TAB 3: Run Backtest ---
 with tab3:
@@ -714,11 +1121,11 @@ stats = bt.run()
     
     col_reset, col_spacer = st.columns([4, 6])
     with col_reset:
-        if st.button("🔄 Reset Script to Default"):
+        if st.button("Reset Script to Default"):
             st.session_state['exec_code_state'] = default_exec_code.strip()
             st.rerun()
     
-    if st.button("▶ Run Script", type="primary", use_container_width=True):
+    if st.button("Run Script", type="primary", use_container_width=True):
         if selected_data and selected_strategy_file:
             with st.spinner("Executing user script..."):
                 try:
@@ -828,22 +1235,7 @@ stats = bt.run()
                         st.warning("`bt` object was not found, interactive plotting will be disabled.")
                         bt = None
                     
-                    # 4. Display Results
-                    st.subheader("Performance Metrics")
-                    m1, m2, m3, m4 = st.columns(4)
-                    m1.metric("Return", f"{stats['Return [%]']:.2f}%")
-                    m2.metric("Final Equity", f"${stats['Equity Final [$]']:,.2f}")
-                    m3.metric("Max Drawdown", f"{stats['Max. Drawdown [%]']:.2f}%")
-                    m4.metric("Win Rate", f"{stats['Win Rate [%]']:.2f}%")
-                    
-                    with st.expander("View Full Statistics Table"):
-                        st.dataframe(stats.drop(['_strategy', '_equity_curve', '_trades']).astype(str))
-                        
-                    if '_trades' in stats and not stats['_trades'].empty:
-                        with st.expander("📝 View Trade History Ledger"):
-                            st.dataframe(stats['_trades'], use_container_width=True)
-                        
-                    # Save results to disk automatically
+                    # 4. Save results to disk automatically
                     import datetime
                     if not os.path.exists("results"):
                         os.makedirs("results")
@@ -854,15 +1246,39 @@ stats = bt.run()
                     # Save stats
                     stats_file = os.path.join("results", f"{report_name}_stats.csv")
                     stats.drop(['_strategy', '_equity_curve', '_trades']).to_csv(stats_file)
-                    st.success(f"Stats saved to `results/{os.path.basename(stats_file)}`")
                     
                     # Save trades
+                    trades_df = stats['_trades'] if '_trades' in stats else pd.DataFrame()
                     trades_file = os.path.join("results", f"{report_name}_trades.csv")
-                    if '_trades' in stats and not stats['_trades'].empty:
-                        stats['_trades'].to_csv(trades_file, index=False)
-                        st.success(f"Trades saved to `results/{os.path.basename(trades_file)}`")
+                    if not trades_df.empty:
+                        trades_df.to_csv(trades_file, index=False)
                         
-                    # 5. Alpha Comparison
+                    # Generate and save Bokeh interactive chart
+                    plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
+                    if bt is not None:
+                        try:
+                            bt.plot(filename=plot_file, open_browser=False)
+                        except Exception as plot_err:
+                            st.warning(f"Failed to generate interactive Bokeh chart: {plot_err}")
+                            plot_file = None
+                    else:
+                        plot_file = None
+
+                    # 5. Extract Metrics & Run Monte Carlo
+                    metrics = calculate_strategy_metrics(stats, trades_df)
+                    
+                    mc_results = None
+                    if not trades_df.empty and 'ReturnPct' in trades_df.columns:
+                        returns = trades_df['ReturnPct'].values / 100.0
+                        if len(returns) >= 5:
+                            mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
+                            
+                    # 6. Render Unified Dashboard
+                    st.success(f"Backtest successfully executed! (Saved as: `{report_name}`)")
+                    
+                    render_unified_dashboard(report_name, metrics, trades_df, plot_file, mc_results)
+                    
+                    # 7. Alpha Comparison
                     st.subheader("Benchmark Alpha Comparison")
                     benchmark_path = "data/benchmark_nifty50.csv"
                     
@@ -882,9 +1298,7 @@ stats = bt.run()
                             # Reindex Benchmark to perfectly match strategy date points (forward filling missing granularity)
                             bm_aligned = bm_df['Close'].reindex(strat_equity.index, method='ffill')
                             
-                            # Drop any NaNs from the very beginning if benchmark started later than strategy (rare)
                             valid_start = bm_aligned.first_valid_index()
-                            
                             if valid_start:
                                 strat_eq_clean = strat_equity.loc[valid_start:]
                                 bm_clean = bm_aligned.loc[valid_start:]
@@ -914,110 +1328,281 @@ stats = bt.run()
                     else:
                         st.info("Nifty 50 benchmark data missing. Skipping alpha compilation.")
                         
-                    # 6. Plot rendering
-                    st.subheader("Interactive Chart")
-                    plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
-                    
-                    if bt is not None:
-                        # Temporarily redirect bokeh output so streamlit can render the generated HTML
-                        bt.plot(filename=plot_file, open_browser=False)
-                        
-                        with open(plot_file, "r", encoding='utf-8') as f:
-                            html_content = f.read()
-                            components.html(html_content, height=700, scrolling=True)
-                        st.success(f"Chart saved to `results/{os.path.basename(plot_file)}`")
-                    else:
-                        st.warning("No interactive chart available (`bt` object missing).")
-                        
                 except Exception as e:
                     st.error(f"Error during backtest: {e}")
         else:
             st.error("Please select both a dataset and a strategy.")
 
-# --- TAB 4: Compare Results ---
+# --- TAB 4: Results & Analytics ---
 with tab4:
-    st.header("Compare Historical Results")
-    st.write("Analyze and compare previous backtest runs saved in the `results/` directory.")
+    st.header("Results & Analytics Dashboard")
+    st.write("Analyze and compare previous backtest runs and bulk tests saved in the `results/` directory.")
+    
+    # We consolidate results using tabs
+    sub_tab1, sub_tab2 = st.tabs(["Run Performance & Comparison", "Bulk Portfolio Viewer"])
     
     results_dir = "results"
-    stats_files = []
-    if os.path.exists(results_dir):
-        stats_files = [f for f in os.listdir(results_dir) if f.endswith('_stats.csv')]
+    
+    with sub_tab1:
+        st.subheader("Performance & Comparison")
         
-    if not stats_files:
-        st.info("No saved results found. Run a backtest in the previous tab to generate results.")
-    else:
-        # Extract base run names (remove '_stats.csv')
-        run_names = [f.replace('_stats.csv', '') for f in stats_files]
-        
-        selected_runs = st.multiselect("Select Runs to Compare:", run_names, default=[run_names[-1]] if run_names else None)
-        
-        if selected_runs:
-            st.subheader("Performance Comparison")
+        stats_files = []
+        if os.path.exists(results_dir):
+            stats_files = [f for f in os.listdir(results_dir) if f.endswith('_stats.csv') and not f.startswith('BULK_')]
             
-            # Build comparative dataframe
-            comparison_df = pd.DataFrame()
-            for run in selected_runs:
-                stats_path = os.path.join(results_dir, f"{run}_stats.csv")
-                try:
-                    # Read the CSV. The first column usually contains the metric names.
-                    run_df = pd.read_csv(stats_path, index_col=0)
+        if not stats_files:
+            st.info("No saved results found. Run a backtest in the previous tab to generate results.")
+        else:
+            run_names = [f.replace('_stats.csv', '') for f in stats_files]
+            
+            selected_runs = st.multiselect(
+                "Select Runs to Analyze/Compare (Select 1 for dashboard, multiple for comparison):", 
+                run_names, 
+                default=[run_names[-1]] if run_names else None
+            )
+            
+            if selected_runs:
+                if len(selected_runs) == 1:
+                    run = selected_runs[0]
+                    stats_path = os.path.join(results_dir, f"{run}_stats.csv")
+                    trades_path = os.path.join(results_dir, f"{run}_trades.csv")
+                    plot_path = os.path.join(results_dir, f"{run}_plot.html")
                     
-                    # Ensure we are only grabbing the first data column if it parsed weirdly, and rename it to the run name
-                    if len(run_df.columns) > 0:
-                        series = run_df.iloc[:, 0]
-                        series.name = run
-                        comparison_df = pd.concat([comparison_df, series], axis=1)
-                except Exception as e:
-                    st.warning(f"Could not load stats for {run}: {e}")
-            
-            if not comparison_df.empty:
-                # Transpose for easier reading if there are many metrics, or keep it vertical. 
-                # Vertical side-by-side relies on Streamlit's full width.
-                st.dataframe(comparison_df.astype(str), use_container_width=True)
-            
-            
-            st.markdown("---")
-            st.subheader("Deep Dive Analysis")
-            st.write("Select a specific run to view its detailed trade logs and interactive historical chart.")
-            
-            run_to_view = st.selectbox("Select Run:", selected_runs)
-            if run_to_view:
-                tabA, tabB = st.tabs(["📝 Trade Ledger", "📈 Interactive Chart"])
-                
-                with tabA:
-                    trades_path = os.path.join(results_dir, f"{run_to_view}_trades.csv")
-                    if os.path.exists(trades_path):
-                        trades_df = pd.read_csv(trades_path)
-                        if not trades_df.empty:
-                            st.write(f"Displaying **{len(trades_df)}** recorded trades.")
+                    if os.path.exists(stats_path):
+                        try:
+                            stats_series = pd.read_csv(stats_path, index_col=0).iloc[:, 0]
+                            trades_df = pd.read_csv(trades_path) if os.path.exists(trades_path) else pd.DataFrame()
+                            metrics = calculate_strategy_metrics(stats_series, trades_df)
                             
-                            # Optional conditional formatting for PnL
-                            def highlight_pnl(val):
-                                try:
-                                    color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
-                                    return f'background-color: {color}'
-                                except:
-                                    return ''
-                            
-                            # Display styled dataframe
-                            if 'PnL' in trades_df.columns:
-                                st.dataframe(trades_df.style.map(highlight_pnl, subset=['PnL']), use_container_width=True)
-                            else:
-                                st.dataframe(trades_df, use_container_width=True)
-                        else:
-                            st.info("No trades were executed during this backtest run.")
-                    else:
-                        st.warning(f"No trade ledger found for {run_to_view}. (Was it run before this update?)")
+                            mc_results = None
+                            if not trades_df.empty and 'ReturnPct' in trades_df.columns:
+                                returns = trades_df['ReturnPct'].values / 100.0
+                                if len(returns) >= 5:
+                                    start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
+                                    mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
+                                    
+                            render_unified_dashboard(run, metrics, trades_df, plot_path, mc_results)
+                        except Exception as e:
+                            st.error(f"Error loading dashboard for {run}: {e}")
+                else:
+                    # Multiple runs selected: Side-by-Side Comparison
+                    st.write(f"### Comparing {len(selected_runs)} Runs")
+                    
+                    comp_data = {}
+                    for run in selected_runs:
+                        stats_path = os.path.join(results_dir, f"{run}_stats.csv")
+                        trades_path = os.path.join(results_dir, f"{run}_trades.csv")
                         
-                with tabB:
-                    plot_path = os.path.join(results_dir, f"{run_to_view}_plot.html")
-                    if os.path.exists(plot_path):
-                        with open(plot_path, "r", encoding='utf-8') as f:
-                            html_content = f.read()
-                            components.html(html_content, height=700, scrolling=True)
+                        if os.path.exists(stats_path):
+                            try:
+                                stats_series = pd.read_csv(stats_path, index_col=0).iloc[:, 0]
+                                trades_df = pd.read_csv(trades_path) if os.path.exists(trades_path) else pd.DataFrame()
+                                metrics = calculate_strategy_metrics(stats_series, trades_df)
+                                
+                                mc_results = None
+                                if not trades_df.empty and 'ReturnPct' in trades_df.columns:
+                                    returns = trades_df['ReturnPct'].values / 100.0
+                                    if len(returns) >= 5:
+                                        start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
+                                        mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
+                                
+                                comp_data[run] = {
+                                    'CAGR (Ann. Return)': f"{metrics.get('Annualized Return [%]', 0.0):.2f}%",
+                                    'Max Drawdown': f"{metrics.get('Max Drawdown [%]', 0.0):.2f}%",
+                                    'Sharpe Ratio': f"{metrics.get('Sharpe Ratio', 0.0):.2f}",
+                                    'Sortino Ratio': f"{metrics.get('Sortino Ratio', 0.0):.2f}",
+                                    'Calmar Ratio': f"{metrics.get('Calmar Ratio', 0.0):.2f}",
+                                    'Profit Factor': f"{metrics.get('Profit Factor', 0.0):.2f}",
+                                    'Win Rate': f"{metrics.get('Win Rate [%]', 0.0):.2f}%",
+                                    'P/L Ratio': f"{metrics.get('P/L Ratio', 0.0):.2f}",
+                                    'Expectancy': f"{metrics.get('Expectancy [%]', 0.0):.4f}%",
+                                    'Total Trades': int(metrics.get('Total Trades', 0)),
+                                    'Simulated Median Drawdown': f"{mc_results['median_max_drawdown']:.2f}%" if mc_results else 'N/A',
+                                    'Simulated 95% VaR Drawdown': f"{mc_results['var_max_drawdown']:.2f}%" if mc_results else 'N/A'
+                                }
+                            except Exception as e:
+                                st.warning(f"Could not load stats for {run}: {e}")
+                                
+                    if comp_data:
+                        comparison_df = pd.DataFrame(comp_data)
+                        st.dataframe(comparison_df, use_container_width=True)
+                        
+                        st.markdown("---")
+                        st.write("### Interactive Charts Comparison")
+                        chart_tabs = st.tabs(selected_runs)
+                        for idx, run in enumerate(selected_runs):
+                            with chart_tabs[idx]:
+                                plot_path = os.path.join(results_dir, f"{run}_plot.html")
+                                if os.path.exists(plot_path):
+                                    with open(plot_path, "r", encoding='utf-8') as f:
+                                        html_content = f.read()
+                                        components.html(html_content, height=600, scrolling=True)
+                                else:
+                                    st.warning(f"No interactive chart found for {run}.")
+                                    
+                        st.markdown("---")
+                        st.write("### Monte Carlo Risk Comparison")
+                        mc_tabs = st.tabs([f"MC: {run}" for run in selected_runs])
+                        for idx, run in enumerate(selected_runs):
+                            with mc_tabs[idx]:
+                                trades_path = os.path.join(results_dir, f"{run}_trades.csv")
+                                stats_path = os.path.join(results_dir, f"{run}_stats.csv")
+                                trades_df = pd.read_csv(trades_path) if os.path.exists(trades_path) else pd.DataFrame()
+                                stats_series = pd.read_csv(stats_path, index_col=0).iloc[:, 0] if os.path.exists(stats_path) else pd.Series()
+                                
+                                if not trades_df.empty and 'ReturnPct' in trades_df.columns:
+                                    returns = trades_df['ReturnPct'].values / 100.0
+                                    if len(returns) >= 5:
+                                        start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
+                                        mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
+                                        
+                                        if mc_results:
+                                            mcol1, mcol2 = st.columns([3, 2])
+                                            with mcol1:
+                                                n_sim = len(mc_results['max_dds'])
+                                                all_eq_curves = mc_results['curves']
+                                                sample_idx = np.random.choice(range(n_sim), min(50, n_sim), replace=False)
+                                                
+                                                from bokeh.plotting import figure
+                                                from bokeh.models import NumeralTickFormatter
+                                                from bokeh.embed import file_html
+                                                from bokeh.resources import CDN
+                                                
+                                                p_mc = figure(title=f"Simulated Equity Paths - {run}", 
+                                                              x_axis_label='Trade Number', 
+                                                              y_axis_label='Equity ($)',
+                                                              tools="pan,box_zoom,reset,save",
+                                                              active_drag="box_zoom",
+                                                              height=350,
+                                                              sizing_mode="stretch_width")
+                                                
+                                                p_mc.background_fill_color = "#0e1117"
+                                                p_mc.border_fill_color = "#0e1117"
+                                                p_mc.title.text_color = "white"
+                                                p_mc.xaxis.axis_label_text_color = "white"
+                                                p_mc.yaxis.axis_label_text_color = "white"
+                                                p_mc.xaxis.major_label_text_color = "white"
+                                                p_mc.yaxis.major_label_text_color = "white"
+                                                p_mc.grid.grid_line_color = "#333333"
+                                                
+                                                for s_idx in sample_idx:
+                                                    curve = all_eq_curves[s_idx]
+                                                    p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
+                                                    
+                                                avg_curve = np.mean(all_eq_curves, axis=0)
+                                                p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
+                                                
+                                                p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
+                                                p_mc.legend.location = "top_left"
+                                                p_mc.legend.background_fill_color = "#0e1117"
+                                                p_mc.legend.label_text_color = "white"
+                                                p_mc.legend.background_fill_alpha = 0.8
+                                                
+                                                mc_html = file_html(p_mc, CDN, "Monte Carlo Spaghetti Plot")
+                                                components.html(mc_html, height=380)
+                                                
+                                            with mcol2:
+                                                st.metric("Expected Final Equity", f"${mc_results['expected_final_equity']:,.2f}")
+                                                st.metric("Median Simulated Drawdown", f"{mc_results['median_max_drawdown']:.2f}%")
+                                                st.metric("95% Probable Max DD (VaR)", f"{mc_results['var_max_drawdown']:.2f}%")
+                                                
+                                                counts, bin_edges = np.histogram(mc_results['max_dds'], bins=20)
+                                                bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+                                                hist_df = pd.DataFrame({'Count': counts}, index=bin_labels)
+                                                st.bar_chart(hist_df, use_container_width=True)
+                                    else:
+                                        st.warning(f"Not enough trades ({len(returns)}) for Monte Carlo on {run}.")
+                                else:
+                                    st.warning(f"No trades recorded for {run}.")
+    
+    with sub_tab2:
+        st.subheader("Bulk Portfolio & Matrix Viewer")
+        
+        bulk_files = []
+        if os.path.exists(results_dir):
+            bulk_files = [f for f in os.listdir(results_dir) if f.startswith('BULK_') and f.endswith('_stats.csv')]
+            
+        if not bulk_files:
+            st.info("No saved bulk results found. Run a bulk test in the Bulk Testing tab to generate results.")
+        else:
+            bulk_run_names = [f.replace('_stats.csv', '') for f in bulk_files]
+            selected_bulk_run = st.selectbox("Select Bulk Test Run:", bulk_run_names)
+            
+            if selected_bulk_run:
+                try:
+                    results_df = pd.read_csv(os.path.join(results_dir, f"{selected_bulk_run}_stats.csv"), index_col=0)
+                    trades_file_path = os.path.join(results_dir, f"{selected_bulk_run}_trades.csv")
+                    combined_trades_df = pd.read_csv(trades_file_path) if os.path.exists(trades_file_path) else pd.DataFrame()
+                    
+                    if not combined_trades_df.empty:
+                        st.markdown("### Combined Portfolio Performance")
+                        st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
+                        
+                        # We calculate metrics for the combined trade ledger
+                        port_metrics = calculate_strategy_metrics({}, combined_trades_df)
+                        
+                        # Run Portfolio Monte Carlo
+                        p_mc_results = None
+                        if 'ReturnPct' in combined_trades_df.columns:
+                            returns = combined_trades_df['ReturnPct'].values / 100.0
+                            if len(returns) >= 5:
+                                p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=10000) # default cap
+                        
+                        pm1, pm2, pm3, pm4 = st.columns(4)
+                        pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
+                        pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
+                        pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
+                        pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
+                        
+                        if p_mc_results:
+                            with st.expander("Portfolio Monte Carlo Analysis", expanded=False):
+                                st.write(f"Expected Portfolio Final Equity: **${p_mc_results['expected_final_equity']:,.2f}**")
+                                st.write(f"Portfolio Median Drawdown: **{p_mc_results['median_max_drawdown']:.2f}%**")
+                                st.write(f"Portfolio 95% Value-at-Risk (VaR) Drawdown: **{p_mc_results['var_max_drawdown']:.2f}%**")
+                                
+                                # Plot portfolio histogram
+                                counts, bin_edges = np.histogram(p_mc_results['max_dds'], bins=20)
+                                bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+                                port_hist_df = pd.DataFrame({
+                                    'Count': counts
+                                }, index=bin_labels)
+                                st.bar_chart(port_hist_df, use_container_width=True)
+                        
+                        if "Cumulative Return [%]" in results_df.columns:
+                            import plotly.express as px
+                            st.markdown("---")
+                            st.subheader("Return Distribution")
+                            fig = px.histogram(
+                                results_df, 
+                                x="Cumulative Return [%]", 
+                                nbins=50, 
+                                title="Distribution of Strategy Cumulative Returns across intervals", 
+                                marginal="box", 
+                                color_discrete_sequence=['#00CC96']
+                            )
+                            st.plotly_chart(fig, use_container_width=True)
+                            
+                        st.markdown("---")
+                        st.subheader("Ranked Performance Matrix")
+                        
+                        sort_col = st.selectbox("Sort By Metric:", results_df.columns, index=results_df.columns.get_loc("Cumulative Return [%]") if "Cumulative Return [%]" in results_df.columns else 0, key="bulk_viewer_sort_col")
+                        sorted_results_df = results_df.sort_values(by=sort_col, ascending=False)
+                        
+                        def highlight_positive(val):
+                            try:
+                                color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                                return f'background-color: {color}'
+                            except:
+                                return ''
+                                
+                        if "Cumulative Return [%]" in sorted_results_df.columns:
+                            st.dataframe(sorted_results_df.style.map(highlight_positive, subset=["Cumulative Return [%]"]), use_container_width=True)
+                        else:
+                            st.dataframe(sorted_results_df, use_container_width=True)
                     else:
-                        st.warning(f"No interactive chart found for {run_to_view}.")
+                        st.warning("No combined trade ledger found for this bulk run.")
+                except Exception as e:
+                    st.error(f"Error loading bulk results: {e}")
 
 # --- TAB 5: Bulk Testing ---
 with tab5:
@@ -1029,7 +1614,7 @@ with tab5:
         data_dir = "data"
         data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] if os.path.exists(data_dir) else []
         
-        st.info("💡 **Note:** When selecting multiple datasets, ensure they all share the same Native Granularity (e.g., all 5-minute tickers, or all Daily).")
+        st.info("**Note:** When selecting multiple datasets, ensure they all share the same Native Granularity (e.g., all 5-minute tickers, or all Daily).")
         selected_bulk_data = st.multiselect("Select Datasets", data_files, key="bulk_data", help="Select one or more historical datasets to test against.")
         
         # --- Date Slicer UI (from Tab 3) ---
@@ -1050,9 +1635,9 @@ with tab5:
                     global_max = min(max_dates)
                     
                     if global_min <= global_max:
-                        st.success(f"✅ Combined Data Overlap Available: **{global_min}** to **{global_max}**")
+                        st.success(f"Combined Data Overlap Available: **{global_min}** to **{global_max}**")
                     else:
-                        st.warning("⚠️ **Warning: No overlapping dates found between the selected datasets!**")
+                        st.warning("**No overlapping dates found between the selected datasets.**")
                         global_min, global_max = min(min_dates), max(max_dates)
                     
                     st.markdown("**Filter Data Range**")
@@ -1158,14 +1743,14 @@ with tab5:
                         count = 0
                     
                     total_tests += count
-                    test_details.append(f"• `{ds}`: **{count}** tests")
+                    test_details.append(f"- `{ds}`: **{count}** tests")
                 else:
-                    test_details.append(f"• `{ds}`: Datetime column not found")
+                    test_details.append(f"- `{ds}`: Datetime column not found")
             except Exception as e:
-                test_details.append(f"• `{ds}`: Error estimating ({e})")
+                test_details.append(f"- `{ds}`: Error estimating ({e})")
                 
         # Display the scale estimation
-        st.markdown("### 📊 Bulk Backtest Scale Estimate")
+        st.markdown("### Bulk Backtest Scale Estimate")
         col_scale1, col_scale2 = st.columns([4, 6])
         with col_scale1:
             st.metric("Total Projected Runs", f"{total_tests}")
@@ -1175,10 +1760,10 @@ with tab5:
                 st.markdown(detail)
                 
         if total_tests > 100:
-            st.warning("⚠️ **Warning:** Running over 100 backtests might take some time depending on hardware and dataset size.")
+            st.warning("**Warning:** Running over 100 backtests might take some time depending on hardware and dataset size.")
         st.markdown("---")
         
-    if st.button("▶ Run Bulk Test", type="primary", use_container_width=True):
+    if st.button("Run Bulk Test", type="primary", use_container_width=True):
         if not selected_bulk_data or not selected_bulk_strat:
             st.error("Please select at least one dataset and a strategy.")
         elif split_freq == "Resample Timeframes" and not bulk_resample_tfs:
@@ -1187,6 +1772,7 @@ with tab5:
             with st.spinner(f"Running Bulk {split_freq} tests across {len(selected_bulk_data)} datasets..."):
                 try:
                     all_stats = []
+                    all_trades_lists = []
                     
                     # 1. Load Strategy
                     strat_class = load_strategy(os.path.join(strategies_dir, selected_bulk_strat))
@@ -1225,11 +1811,11 @@ with tab5:
                             median_diff = df.index.to_series().diff().median()
                             
                             if split_freq == "Intraday (Time Windows)" and median_diff >= pd.Timedelta(days=1):
-                                st.error(f"⚠️ Granularity Mismatch for `{dataset_file}`: You requested an **Intraday** split, but this dataset appears to only contain **Daily** (or higher) candles! Skipping this file.")
+                                st.error(f"Granularity Mismatch for `{dataset_file}`: You requested an **Intraday** split, but this dataset appears to only contain **Daily** (or higher) candles. Skipping.")
                                 continue
                                 
                             if split_freq == "Daily" and median_diff >= pd.Timedelta(days=7):
-                                st.error(f"⚠️ Granularity Mismatch for `{dataset_file}`: You requested a **Daily** split, but this dataset appears to only contain **Weekly/Monthly** candles! Skipping this file.")
+                                st.error(f"Granularity Mismatch for `{dataset_file}`: You requested a **Daily** split, but this dataset appears to only contain **Weekly/Monthly** candles. Skipping.")
                                 continue
                         
                         # Apply DateTime Slicing
@@ -1318,50 +1904,98 @@ with tab5:
                             
                             stats = bt.run()
                             
-                            # Clean up stats series for row-insertion
-                            stats = stats.drop(['_strategy', '_equity_curve', '_trades'])
-                            stats.name = chunk_label
-                            all_stats.append(stats)
+                            chunk_trades = stats['_trades'] if '_trades' in stats else pd.DataFrame()
+                            if not chunk_trades.empty:
+                                t_copy = chunk_trades.copy()
+                                t_copy['Chunk'] = chunk_label
+                                all_trades_lists.append(t_copy)
+                            
+                            # Calculate full institutional metrics for this chunk
+                            chunk_metrics = calculate_strategy_metrics(stats, chunk_trades)
+                            chunk_metrics_series = pd.Series(chunk_metrics)
+                            chunk_metrics_series.name = chunk_label
+                            all_stats.append(chunk_metrics_series)
                             
                             # Update progress
                             progress_bar.progress((i + 1) / total_chunks)
                         
                     # 5. Aggregate and Display
                     if all_stats:
-                        # Combine all series into a dataframe where rows are periods
                         results_df = pd.DataFrame(all_stats)
                         
+                        combined_trades_df = pd.DataFrame()
+                        if all_trades_lists:
+                            combined_trades_df = pd.concat(all_trades_lists, ignore_index=True)
+                            
                         st.success("Bulk Testing Complete!")
                         
-                        # --- Auto Export Results ---
-                        bulk_results_dir = "bulk_results"
-                        if not os.path.exists(bulk_results_dir):
-                            os.makedirs(bulk_results_dir)
+                        # --- Auto Export Results (to results/ folder) ---
+                        results_dir = "results"
+                        if not os.path.exists(results_dir):
+                            os.makedirs(results_dir)
                             
                         import datetime
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
                         
-                        # Use multiple dataset tagging if more than one selected
                         if len(selected_bulk_data) > 1:
                             target_tag = "Multiple_Datasets"
                         else:
                             target_tag = selected_bulk_data[0].replace('.csv', '')
                             
-                        bulk_report_name = f"BULK_{split_freq}_{selected_bulk_strat.replace('.py', '')}_{target_tag}_{timestamp}.csv"
-                        bulk_path = os.path.join(bulk_results_dir, bulk_report_name)
+                        bulk_report_base = f"BULK_{split_freq}_{selected_bulk_strat.replace('.py', '')}_{target_tag}_{timestamp}"
+                        bulk_stats_path = os.path.join(results_dir, f"{bulk_report_base}_stats.csv")
+                        bulk_trades_path = os.path.join(results_dir, f"{bulk_report_base}_trades.csv")
                         
-                        results_df.to_csv(bulk_path)
-                        st.info(f"💾 Rendered Bulk Matrix successfully exported to `{bulk_path}`!")
+                        results_df.to_csv(bulk_stats_path)
+                        if not combined_trades_df.empty:
+                            combined_trades_df.to_csv(bulk_trades_path, index=False)
+                            
+                        st.info(f"Bulk files successfully exported to `results/`.")
                         
-                        if "Return [%]" in results_df.columns:
+                        # Show Combined Portfolio Performance
+                        if not combined_trades_df.empty:
+                            st.markdown("---")
+                            st.subheader("Combined Portfolio Performance")
+                            st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
+                            
+                            port_metrics = calculate_strategy_metrics({}, combined_trades_df)
+                            
+                            p_mc_results = None
+                            if 'ReturnPct' in combined_trades_df.columns:
+                                returns = combined_trades_df['ReturnPct'].values / 100.0
+                                if len(returns) >= 5:
+                                    p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
+                            
+                            pm1, pm2, pm3, pm4 = st.columns(4)
+                            pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
+                            pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
+                            pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
+                            pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
+                            
+                            # Render Portfolio Monte Carlo if available
+                            if p_mc_results:
+                                with st.expander("Portfolio Monte Carlo Analysis", expanded=False):
+                                    st.write(f"Expected Portfolio Final Equity: **${p_mc_results['expected_final_equity']:,.2f}**")
+                                    st.write(f"Portfolio Median Drawdown: **{p_mc_results['median_max_drawdown']:.2f}%**")
+                                    st.write(f"Portfolio 95% Value-at-Risk (VaR) Drawdown: **{p_mc_results['var_max_drawdown']:.2f}%**")
+                                    
+                                    # Plot portfolio histogram
+                                    counts, bin_edges = np.histogram(p_mc_results['max_dds'], bins=20)
+                                    bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+                                    port_hist_df = pd.DataFrame({
+                                        'Count': counts
+                                    }, index=bin_labels)
+                                    st.bar_chart(port_hist_df, use_container_width=True)
+                        
+                        if "Cumulative Return [%]" in results_df.columns:
                             import plotly.express as px
                             st.markdown("---")
                             st.subheader("Return Distribution")
                             fig = px.histogram(
                                 results_df, 
-                                x="Return [%]", 
+                                x="Cumulative Return [%]", 
                                 nbins=50, 
-                                title="Distribution of Strategy Returns", 
+                                title="Distribution of Strategy Cumulative Returns across intervals", 
                                 marginal="box", 
                                 color_discrete_sequence=['#00CC96']
                             )
@@ -1371,10 +2005,9 @@ with tab5:
                         st.subheader("Ranked Performance Matrix")
                         
                         # Let user sort the dataframe easily
-                        sort_col = st.selectbox("Sort By:", results_df.columns, index=results_df.columns.get_loc("Return [%]") if "Return [%]" in results_df.columns else 0)
+                        sort_col = st.selectbox("Sort By Metric:", results_df.columns, index=results_df.columns.get_loc("Cumulative Return [%]") if "Cumulative Return [%]" in results_df.columns else 0)
                         results_df = results_df.sort_values(by=sort_col, ascending=False)
                         
-                        # Optional: Highlight positive returns
                         def highlight_positive(val):
                             try:
                                 color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
@@ -1382,8 +2015,8 @@ with tab5:
                             except:
                                 return ''
                                 
-                        if "Return [%]" in results_df.columns:
-                            st.dataframe(results_df.style.map(highlight_positive, subset=["Return [%]"]), use_container_width=True)
+                        if "Cumulative Return [%]" in results_df.columns:
+                            st.dataframe(results_df.style.map(highlight_positive, subset=["Cumulative Return [%]"]), use_container_width=True)
                         else:
                             st.dataframe(results_df, use_container_width=True)
                     else:
@@ -1504,11 +2137,11 @@ with tab6:
                 st.markdown("---")
                 st.markdown("**(Uses the Advanced Parameters currently set in Tab 3 `Run Backtest` for capital/margins/etc)**")
                 
-                if st.button("🚀 Run Optimization", type="primary", use_container_width=True):
+                if st.button("Run Optimization", type="primary", use_container_width=True):
                     if not opt_ranges:
                         st.error("You must define valid ranges before optimizing.")
                     else:
-                        st.info("💡 Note: To forcefully stop a long optimization, use the 🛑 Stop Local Server button in the sidebar.")
+                        st.info("Note: To forcefully stop a long optimization, use the Stop Server button in the sidebar.")
                         with st.spinner(f"Running {opt_method}... this may take a moment depending on range sizes!"):
                             try:
                                 # 1. Prepare Data
@@ -1621,7 +2254,7 @@ with tab6:
                                 try:
                                     stats_clean.to_csv(os.path.join(opt_dir, f"{report_name}_stats.csv"))
                                     heatmap.to_csv(os.path.join(opt_dir, f"{report_name}_heatmap.csv"))
-                                    st.info(f"💾 Rendered Metrics explicitly saved back to `{opt_dir}/` directory.")
+                                    st.info(f"Metrics saved to `{opt_dir}/` directory.")
                                 except Exception as save_err:
                                     st.warning(f"Could not save output data to CSVs: {save_err}")
                                 
@@ -1655,7 +2288,7 @@ with tab6:
 
 # --- TAB 7: Paper Trading ---
 with tab7:
-    st.header("⏱️ Paper Trading Engine (Background Daemon)")
+    st.header("Paper Trading Engine")
     st.write("Run your strategy on live-updating data natively in the background. You can navigate away from this tab while engines run.")
     
     results_dir = "results"
@@ -1663,7 +2296,7 @@ with tab7:
     state_files = [f for f in os.listdir(results_dir) if f.startswith('pt_state_') and f.endswith('.json')]
     
     # 1. Start New Engine Form
-    with st.expander("🚀 Launch New Paper Trading Engine", expanded=len(state_files) == 0):
+    with st.expander("Launch New Engine", expanded=len(state_files) == 0):
         col1, col2 = st.columns(2)
         with col1:
             pt_source_opt = st.selectbox("Live Data Source", ["TradingView", "Yahoo Finance"], key="pt_source")
@@ -1687,7 +2320,7 @@ with tab7:
             pt_commission = st.number_input("Commission (e.g., 0.002 = 0.2%)", min_value=0.0, max_value=0.1, value=0.0, step=0.001, format="%.4f", key="pt_comm")
             pt_poll_delay = st.slider("Poll Delay (Seconds)", min_value=3, max_value=86400, value=60, help="How often the daemon fetches new data (e.g., 3600 = Hourly, 86400 = Daily).", key="pt_delay")
     
-        if st.button("▶ Start Engine", type="primary"):
+        if st.button("Start Engine", type="primary"):
             if not selected_pt_strat:
                 st.error("Please select a valid strategy.")
             else:
@@ -1715,10 +2348,10 @@ with tab7:
     st.divider()
     
     # 2. Active Dashboards
-    st.subheader("🖥️ Active Engines Dashboard")
+    st.subheader("Active Engines")
     
     col_ref, col_spacer = st.columns([1, 5])
-    if col_ref.button("🔄 Refresh Dashboard"):
+    if col_ref.button("Refresh"):
         st.rerun()
         
     if not state_files:
@@ -1736,9 +2369,9 @@ with tab7:
                 st.warning(f"Could not read state for {sym}: {e}")
                 continue
                 
-            status_color = "🟢" if state.get("status") in ["Running", "Starting"] else "🔴"
+            status_color = "[ON]" if state.get("status") in ["Running", "Starting"] else "[OFF]"
             if state.get("status") == "Error":
-                status_color = "⚠️"
+                status_color = "[ERR]"
                 
             with st.container(border=True):
                 st.markdown(f"#### {status_color} {sym} | Backend: {state.get('status')} | Last Update: `{state.get('last_updated', 'N/A')}`")
@@ -1763,7 +2396,7 @@ with tab7:
                         
                 plot_file = os.path.join(results_dir, f"pt_plot_{sym}.html")
                 if os.path.exists(plot_file):
-                    with st.expander("📈 Live Interactive Chart"):
+                    with st.expander("Live Interactive Chart"):
                         try:
                             with open(plot_file, "r", encoding='utf-8') as f:
                                 html_content = f.read()
@@ -1772,7 +2405,7 @@ with tab7:
                             st.warning(f"Could not load chart: {e}")
                             
                 c_stop, c_del = st.columns([2, 8])
-                if c_stop.button(f"🛑 Stop `{sym}` Engine", key=f"stop_{sym}"):
+                if c_stop.button(f"Stop `{sym}` Engine", key=f"stop_{sym}"):
                     stop_path = os.path.join(results_dir, f"pt_stop_{sym}.txt")
                     with open(stop_path, 'w') as f:
                         f.write("STOP")
@@ -1782,196 +2415,8 @@ with tab7:
                 
                 # Option to clear disconnected/stopped engines from dashboard
                 if state.get("status") in ["Stopped", "Error"]:
-                    if c_del.button(f"🗑️ Clean up `{sym}` Dashboard", key=f"del_{sym}"):
+                    if c_del.button(f"Remove `{sym}` from Dashboard", key=f"del_{sym}"):
                         os.remove(state_path)
                         st.rerun()
 
-# --- TAB 8: Monte Carlo Analysis ---
-with tab8:
-    st.header("🎲 Monte Carlo Risk Analysis")
-    st.write("Stress-test your strategy by shuffling trade sequences to simulate thousands of 'what-if' market scenarios.")
-    
-    results_dir = "results"
-    trade_files = []
-    if os.path.exists(results_dir):
-        trade_files = [f for f in os.listdir(results_dir) if f.endswith('_trades.csv')]
-        
-    if not trade_files:
-        st.info("No trade ledgers found. Run a backtest in Tab 3 first to generate data.")
-    else:
-        mc_col1, mc_col2 = st.columns([1, 1])
-        
-        with mc_col1:
-            selected_mc_file = st.selectbox("Select Trade Ledger:", trade_files)
-            n_simulations = st.slider("Number of Simulations", min_value=100, max_value=10000, value=1000, step=100)
-            
-        with mc_col2:
-            start_capital = st.number_input("Simulation Start Capital ($)", min_value=100, value=10000, step=1000)
-            confidence_level = st.slider("Confidence Level (%)", min_value=80, max_value=99, value=95)
 
-        if st.button("🎲 Run Monte Carlo Simulation", type="primary", use_container_width=True):
-            try:
-                # 1. Load Trades
-                trades_df = pd.read_csv(os.path.join(results_dir, selected_mc_file))
-                
-                # We use ReturnPct (percentage) for shuffling as it's independent of absolute capital
-                if 'ReturnPct' not in trades_df.columns:
-                    st.error("The selected ledger does not contain 'ReturnPct' data. Please run a new backtest.")
-                    st.stop()
-                
-                # Convert percentage to decimal (e.g. 2.5 -> 0.025)
-                returns = trades_df['ReturnPct'].values / 100.0
-                
-                if len(returns) < 5:
-                    st.warning("Too few trades to run a meaningful simulation. Need at least 5 trades.")
-                    st.stop()
-
-                # 2. Run Simulations
-                with st.spinner(f"Simulating {n_simulations} sequences..."):
-                    all_eq_curves = []
-                    max_dds = []
-                    final_vals = []
-                    
-                    for _ in range(n_simulations):
-                        # Shuffle with replacement (Bootstrapping)
-                        shuffled_rets = np.random.choice(returns, size=len(returns), replace=True)
-                        
-                        # Calculate compounding equity
-                        # Equity_n = Start * Product(1 + r_i)
-                        eq_curve = start_capital * np.cumprod(1 + shuffled_rets)
-                        eq_curve = np.insert(eq_curve, 0, start_capital)
-                        
-                        all_eq_curves.append(eq_curve)
-                        
-                        # Max Drawdown calculation
-                        peak = np.maximum.accumulate(eq_curve)
-                        dd = (eq_curve - peak) / peak
-                        max_dds.append(np.min(dd) * 100) # Store as %
-                        
-                        final_vals.append(eq_curve[-1])
-
-                # 3. Analyze Results
-                st.divider()
-                st.subheader("🏁 Comparative Verdict")
-                
-                # Try to load the original stats for comparison
-                original_dd = None
-                stats_file_name = selected_mc_file.replace('_trades.csv', '_stats.csv')
-                stats_path = os.path.join(results_dir, stats_file_name)
-                
-                if os.path.exists(stats_path):
-                    try:
-                        orig_stats = pd.read_csv(stats_path, index_col=0)
-                        # The column name is usually '0' or matching the run name
-                        original_dd = float(orig_stats.loc['Max. Drawdown [%]'].iloc[0])
-                    except:
-                        pass
-                
-                avg_final = np.mean(final_vals)
-                median_dd = np.median(max_dds)
-                var_dd = np.percentile(max_dds, 100 - confidence_level) # 95% Var
-                
-                v_col1, v_col2 = st.columns([2, 1])
-                
-                with v_col1:
-                    if original_dd is not None:
-                        diff = median_dd - original_dd
-                        if diff < -5: # Median is much worse (more negative)
-                            st.warning(f"### Verdict: **Sequence Luck Detected** ⚠️")
-                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) was significantly luckier than the average simulation (Median DD: **{median_dd:.2f}%**). The order of trades in your backtest was ideal and likely won't repeat. Expect deeper drawdowns in live trading.")
-                        elif diff > 5: # Median is much better
-                            st.success(f"### Verdict: **Pessimistic Backtest** 🛡️")
-                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) was actually 'unlucky'. Most simulations (Median DD: **{median_dd:.2f}%**) show a smoother path. Your strategy is likely more robust than your single test suggests.")
-                        else:
-                            st.info(f"### Verdict: **Statistically Robust** ✅")
-                            st.write(f"Your original backtest (DD: **{original_dd:.2f}%**) is very close to the simulated median (DD: **{median_dd:.2f}%**). This suggests your results are not dependent on trade sequence and are highly reliable.")
-                    else:
-                        st.info("Original stats file not found for comparison. Running independent analysis.")
-
-                with v_col2:
-                    st.write("**Key Comparison**")
-                    if original_dd is not None:
-                        st.metric("Original Max DD", f"{original_dd:.2f}%")
-                    st.metric("Median Simulated DD", f"{median_dd:.2f}%", delta=f"{median_dd - (original_dd if original_dd else 0):.2f}%", delta_color="inverse")
-                
-                st.divider()
-                st.subheader("Detailed Metrics")
-                m1, m2, m3 = st.columns(3)
-                m1.metric("Expected Final Equity", f"${avg_final:,.2f}")
-                m2.metric("Median Max Drawdown", f"{median_dd:.2f}%")
-                m3.metric(f"{confidence_level}% Probable Max DD (VaR)", f"{var_dd:.2f}%")
-
-                # 4. Visualization
-                st.divider()
-                viz_col1, viz_col2 = st.columns([3, 2])
-                
-                with viz_col1:
-                    st.write("### Equity Curve 'Spaghetti' Plot")
-                    st.caption(f"Showing 50 random samples out of {n_simulations} simulations.")
-                    
-                    # Prepare data for plotting
-                    sample_indices = np.random.choice(range(n_simulations), min(50, n_simulations), replace=False)
-                    
-                    from bokeh.plotting import figure
-                    from bokeh.models import NumeralTickFormatter
-                    from bokeh.embed import file_html
-                    from bokeh.resources import CDN
-                    
-                    p_mc = figure(title="Simulated Equity Paths", 
-                                 x_axis_label='Trade Number', 
-                                 y_axis_label='Equity ($)',
-                                 tools="pan,box_zoom,reset,save",
-                                 active_drag="box_zoom",
-                                 height=450,
-                                 sizing_mode="stretch_width")
-                    
-                    # --- Dark Mode Styling ---
-                    p_mc.background_fill_color = "#0e1117"
-                    p_mc.border_fill_color = "#0e1117"
-                    p_mc.title.text_color = "white"
-                    p_mc.xaxis.axis_label_text_color = "white"
-                    p_mc.yaxis.axis_label_text_color = "white"
-                    p_mc.xaxis.major_label_text_color = "white"
-                    p_mc.yaxis.major_label_text_color = "white"
-                    p_mc.grid.grid_line_color = "#333333"
-                    # -------------------------
-
-                    # Add each sample path
-                    for idx in sample_indices:
-                        curve = all_eq_curves[idx]
-                        p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
-                    
-                    # Highlight the average path in a different color
-                    avg_curve = np.mean(all_eq_curves, axis=0)
-                    p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
-                    
-                    p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
-                    p_mc.legend.location = "top_left"
-                    p_mc.legend.click_policy = "hide"
-                    p_mc.legend.background_fill_color = "#0e1117"
-                    p_mc.legend.label_text_color = "white"
-                    p_mc.legend.background_fill_alpha = 0.8
-                    
-                    # Convert Bokeh figure to HTML string and render
-                    mc_html = file_html(p_mc, CDN, "Monte Carlo Spaghetti Plot")
-                    components.html(mc_html, height=480)
-                    
-                with viz_col2:
-                    st.write("### Max Drawdown Distribution")
-                    st.caption("Distribution of worst-case drawdowns across all simulations.")
-                    
-                    # Create a clean histogram
-                    counts, bin_edges = np.histogram(max_dds, bins=25)
-                    # Round bin edges for cleaner X-axis labels
-                    bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
-                    
-                    hist_df = pd.DataFrame({
-                        'Drawdown Probability': counts
-                    }, index=bin_labels)
-                    
-                    st.bar_chart(hist_df, use_container_width=True)
-
-                st.info("💡 **Insight:** If your 'Original Backtest' Max Drawdown was much lower than the 'Median Max Drawdown' shown here, your backtest was likely 'lucky' with the order of trades. Plan your risk based on the Monte Carlo results instead.")
-
-            except Exception as e:
-                st.error(f"Monte Carlo simulation failed: {e}")
