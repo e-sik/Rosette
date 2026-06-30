@@ -99,12 +99,230 @@ def fetch_yfinance(symbol, interval_str, start_date=None, end_date=None):
     df.to_csv(filepath)
     return filepath, None
 
+def fetch_moneycontrol(symbol, interval_str, start_date=None, end_date=None):
+    """Fetches historical and intraday data from Moneycontrol's technical charting API."""
+    logger.info(f"Fetching {symbol} from Moneycontrol with {interval_str} interval...")
+    import requests
+    import re
+    import datetime
+
+    # 1. Resolve Symbol (Ticker or Index sc_id)
+    url_suggest = "https://www.moneycontrol.com/mccode/common/autosuggestion_solr.php"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "*/*",
+        "Origin": "https://www.moneycontrol.com",
+        "Referer": "https://www.moneycontrol.com/",
+    }
+
+    sym = symbol.strip().upper()
+    if sym.endswith(".NS") or sym.endswith(".BO"):
+        sym = sym[:-3]
+
+    INDEX_MAP = {
+        "NIFTY": "9",
+        "NIFTY50": "9",
+        "NIFTY 50": "9",
+        "NIFTY_50": "9",
+        "SENSEX": "4",
+        "BSESN": "4",
+        "BSE SENSEX": "4",
+        "BANKNIFTY": "23",
+        "NIFTYBANK": "23",
+        "NIFTY BANK": "23",
+    }
+
+    resolved_symbol = sym
+    is_index = False
+
+    if sym in INDEX_MAP:
+        resolved_symbol = INDEX_MAP[sym]
+        is_index = True
+    else:
+        # Search autosuggest to resolve indices and clean stock symbols
+        try:
+            suggest_resp = requests.get(url_suggest, params={"query": sym, "type": "1", "format": "json"}, headers=headers, timeout=5)
+            if suggest_resp.status_code == 200:
+                suggest_data = suggest_resp.json()
+                if suggest_data and isinstance(suggest_data, list):
+                    for match in suggest_data:
+                        link_src = match.get("link_src", "")
+                        sc_id = match.get("sc_id", "")
+                        
+                        # Skip US/Global markets as they are not supported on the Indian charting API
+                        if "/us-markets/" in link_src:
+                            continue
+                            
+                        if "/indian-indices/" in link_src:
+                            resolved_symbol = sc_id
+                            is_index = True
+                            logger.info(f"Resolved index '{symbol}' to sc_id '{sc_id}'")
+                            break
+                        elif "/stockpricequote/" in link_src:
+                            # Extract ticker from span inside pdt_dis_nm
+                            pdt_dis_nm = match.get("pdt_dis_nm", "")
+                            span_match = re.search(r"<span>(.*?)</span>", pdt_dis_nm)
+                            if span_match:
+                                parts = [p.strip() for p in span_match.group(1).split(",")]
+                                if len(parts) >= 2:
+                                    resolved_symbol = parts[1]
+                                    logger.info(f"Resolved stock '{symbol}' to ticker '{resolved_symbol}'")
+                                    break
+        except Exception as e:
+            logger.error(f"Error during Moneycontrol symbol resolution: {e}")
+
+    # 2. Map Interval String to Moneycontrol Resolutions
+    # yfinance uses '1m', '2m', '5m', '15m', '30m', '60m', '90m', '1h', '1d', '5d', '1wk', '1mo', '3mo'
+    interval_map = {
+        "1m": "1",
+        "2m": "3",
+        "5m": "5",
+        "15m": "15",
+        "30m": "30",
+        "60m": "60",
+        "90m": "60",
+        "1h": "60",
+        "1d": "1D",
+        "5d": "1D",
+        "1wk": "1W",
+        "1mo": "1M",
+        "3mo": "1M",
+    }
+    resolution = interval_map.get(interval_str, "1D")
+
+    # 3. Calculate Date Range and countback
+    end_date_dt = pd.to_datetime(end_date) if end_date else pd.to_datetime('today')
+    # If daily or weekly, add a day to make sure end date is inclusive
+    if resolution in ["1D", "1W", "1M"]:
+        end_date_dt = end_date_dt + pd.Timedelta(days=1)
+    
+    start_date_dt = pd.to_datetime(start_date) if start_date else end_date_dt - pd.Timedelta(days=30)
+    
+    days_diff = (end_date_dt - start_date_dt).days
+
+    if resolution == "1D":
+        countback = days_diff + 10
+    elif resolution == "1W":
+        countback = (days_diff // 7) + 5
+    elif resolution == "1M":
+        countback = (days_diff // 30) + 2
+    elif resolution == "1":
+        countback = (days_diff + 1) * 375
+    elif resolution == "3":
+        countback = (days_diff + 1) * 125
+    elif resolution == "5":
+        countback = (days_diff + 1) * 75
+    elif resolution == "15":
+        countback = (days_diff + 1) * 25
+    elif resolution == "30":
+        countback = (days_diff + 1) * 13
+    elif resolution == "60":
+        countback = (days_diff + 1) * 7
+    else:
+        countback = days_diff + 10
+
+    # Cap countback based on verified limits
+    if resolution in ["1D", "1W", "1M"]:
+        countback = min(max(countback, 2), 10000)
+    else:
+        countback = min(max(countback, 2), 95000)
+
+    # 4. Request from API
+    url_history = "https://priceapi.moneycontrol.com/techCharts/indianMarket/stock/history"
+    params = {
+        "symbol": resolved_symbol,
+        "resolution": resolution,
+        "from": str(int(start_date_dt.timestamp())),
+        "to": str(int(end_date_dt.timestamp())),
+        "countback": str(countback)
+    }
+
+    try:
+        logger.info(f"Querying Moneycontrol history endpoint with resolved_symbol={resolved_symbol}, resolution={resolution}, countback={countback}...")
+        resp = requests.get(url_history, params=params, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            err = f"Failed to fetch from Moneycontrol API: HTTP {resp.status_code}"
+            logger.error(err)
+            return None, err
+            
+        res_json = resp.json()
+        if res_json.get('s') != 'ok':
+            err = f"Moneycontrol API error: {res_json.get('errmsg', 'No data returned')}"
+            logger.error(err)
+            return None, err
+            
+        # Parse into DataFrame
+        df_new = pd.DataFrame({
+            'Datetime': pd.to_datetime(res_json['t'], unit='s'),
+            'Open': res_json['o'],
+            'High': res_json['h'],
+            'Low': res_json['l'],
+            'Close': res_json['c'],
+            'Volume': res_json['v']
+        })
+        df_new.set_index('Datetime', inplace=True)
+        # Match standard yfinance timezone format (localized to UTC)
+        df_new.index = df_new.index.tz_localize('UTC')
+
+    except Exception as e:
+        err = f"Network or parsing exception: {e}"
+        logger.error(err)
+        return None, err
+
+    # 5. Fetch & Merge with existing local CSV file (if exists)
+    filename = f"MC_{sym}_{interval_str}.csv"
+    filepath = os.path.join(DATA_DIR, filename)
+
+    if os.path.exists(filepath):
+        try:
+            logger.info(f"Existing file found at {filepath}. Merging new data...")
+            df_existing = pd.read_csv(filepath, index_col=0, parse_dates=True)
+            
+            # Combine and deduplicate keeping the latest records
+            df_combined = pd.concat([df_existing, df_new])
+            df_combined = df_combined[~df_combined.index.duplicated(keep='last')]
+            df_combined.sort_index(inplace=True)
+            df_new = df_combined
+            logger.info(f"Merge successful. Combined row count: {len(df_combined)}")
+        except Exception as e:
+            logger.error(f"Failed to merge with existing CSV: {e}. Overwriting instead.")
+
+    # 6. Slice local dataframe to matching range
+    try:
+        sd = pd.to_datetime(start_date).tz_localize('UTC') if start_date else None
+        ed = (pd.to_datetime(end_date) + pd.Timedelta(days=1)).tz_localize('UTC') if end_date else None
+        
+        if sd:
+            df_new = df_new.loc[df_new.index >= sd]
+        if ed:
+            df_new = df_new.loc[df_new.index <= ed]
+    except Exception as e:
+        logger.error(f"Failed to slice DataFrame by date range: {e}")
+
+    # Set column names and index name
+    df_new.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
+    if resolution in ["1D", "1W", "1M"]:
+        df_new.index.name = "Date"
+        try:
+            df_new.index = df_new.index.date
+        except Exception:
+            pass
+    else:
+        df_new.index.name = "Datetime"
+
+    # Save to file
+    df_new.to_csv(filepath)
+    logger.info(f"Successfully saved {len(df_new)} rows to {filepath}")
+    return filepath, None
+
 def fetch_data_hub(source, symbol, exchange, interval_tv_enum, interval_yf_str, start_date=None, end_date=None):
     """Routes the fetch request to the proper service."""
     if source == "TradingView":
         return fetch_tradingview(symbol, exchange, interval_tv_enum, start_date, end_date)
     elif source == "Yahoo Finance":
         return fetch_yfinance(symbol, interval_yf_str, start_date, end_date)
+    elif source == "Moneycontrol":
+        return fetch_moneycontrol(symbol, interval_yf_str, start_date, end_date)
     return None, "Invalid data source selected."
 
 if __name__ == "__main__":

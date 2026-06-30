@@ -149,6 +149,77 @@ st.markdown("""
     
     /* Divider spacing */
     hr { margin: 0.75rem 0 !important; }
+    
+    /* Sidebar Navigation Circles and Labels */
+    section[data-testid="stSidebar"] [data-testid="column"]:first-child button {
+        border-radius: 50% !important;
+        width: 38px !important;
+        height: 38px !important;
+        min-width: 38px !important;
+        max-width: 38px !important;
+        min-height: 38px !important;
+        max-height: 38px !important;
+        padding: 0 !important;
+        display: inline-flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        font-size: 1.1rem !important;
+        transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    }
+    
+    /* Secondary (inactive) circle button styling */
+    section[data-testid="stSidebar"] [data-testid="column"]:first-child button[data-testid="baseButton-secondary"] {
+        background-color: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        color: rgba(255, 255, 255, 0.7) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="column"]:first-child button[data-testid="baseButton-secondary"]:hover {
+        background-color: rgba(108, 99, 255, 0.15) !important;
+        border-color: #6C63FF !important;
+        color: #ffffff !important;
+        transform: scale(1.08);
+    }
+    
+    /* Primary (active) circle button styling */
+    section[data-testid="stSidebar"] [data-testid="column"]:first-child button[data-testid="baseButton-primary"] {
+        background-color: #6C63FF !important;
+        border: 1px solid #6C63FF !important;
+        color: #ffffff !important;
+        box-shadow: 0 0 12px rgba(108, 99, 255, 0.4) !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="column"]:first-child button[data-testid="baseButton-primary"]:hover {
+        transform: scale(1.08);
+        box-shadow: 0 0 16px rgba(108, 99, 255, 0.6) !important;
+    }
+    
+    /* Target second column (text labels) in the sidebar */
+    section[data-testid="stSidebar"] [data-testid="column"]:nth-child(2) button {
+        background: transparent !important;
+        border: none !important;
+        padding: 0 !important;
+        text-align: left !important;
+        font-size: 0.9rem !important;
+        font-weight: 500 !important;
+        color: rgba(255, 255, 255, 0.6) !important;
+        justify-content: flex-start !important;
+        width: 100% !important;
+        height: 38px !important;
+        transition: all 0.2s ease-in-out !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="column"]:nth-child(2) button:hover {
+        color: #ffffff !important;
+        background: transparent !important;
+        border: none !important;
+    }
+    
+    /* Style for the active tab's label button */
+    section[data-testid="stSidebar"] [data-testid="column"]:nth-child(2) button[data-testid="baseButton-primary"] {
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -177,6 +248,30 @@ try:
 except Exception:
     pass
 
+# Sidebar Workspace Navigation
+st.sidebar.markdown("<div style='margin-top: 0.5rem; margin-bottom: 0.8rem; font-size: 0.8rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: rgba(255, 255, 255, 0.4);'>Workspace Navigation</div>", unsafe_allow_html=True)
+
+TABS = ["Fetch Data", "Strategy Editor", "Run Backtest", "Results & Analytics", "Optimize Parameters", "Paper Trading"]
+TAB_ICONS = ["📥", "📝", "⚡", "📊", "⚙️", "🧪"]
+
+# Navigation Menu inside Sidebar
+for label, icon in zip(TABS, TAB_ICONS):
+    col_btn, col_lbl = st.sidebar.columns([1, 4])
+    is_active = (st.session_state.get('active_tab', "Fetch Data") == label)
+    btn_type = "primary" if is_active else "secondary"
+    
+    with col_btn:
+        if st.button(icon, key=f"nav_btn_{label}", type=btn_type, help=f"Go to {label}"):
+            st.session_state['active_tab'] = label
+            st.rerun()
+            
+    with col_lbl:
+        if st.button(label, key=f"nav_lbl_{label}", type=btn_type, help=f"Go to {label}"):
+            st.session_state['active_tab'] = label
+            st.rerun()
+
+st.sidebar.divider()
+
 st.sidebar.header("Control Panel")
 if st.sidebar.button("Stop Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
     st.sidebar.warning("Shutting down the server...")
@@ -188,6 +283,8 @@ st.sidebar.info("**Data Archival Policy**\n\nAll Data, Backtest Results, and Cha
 st.sidebar.caption("Community Edition")
 
 # --- Initialize Session State ---
+if 'active_tab' not in st.session_state:
+    st.session_state['active_tab'] = "Fetch Data"
 if 'data_fetched' not in st.session_state:
     st.session_state['data_fetched'] = False
 if 'ide_theme' not in st.session_state:
@@ -528,27 +625,30 @@ def render_unified_dashboard(run_name, metrics, trades_df, plot_html_path, mc_re
         else:
             st.dataframe(trades_df, use_container_width=True)
 
-# --- Tabs ---
-tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs(["Fetch Data", "Strategy Editor", "Run Backtest", "Results & Analytics", "Bulk Testing", "Optimize Parameters", "Paper Trading"])
+# --- Active Tab Routing ---
+active_tab = st.session_state.get('active_tab', "Fetch Data")
 
 # --- TAB 1: Data Fetching ---
-with tab1:
+if active_tab == "Fetch Data":
     st.header("Fetch Historical Data")
-    st.write("Download historical data directly from TradingView or Yahoo Finance.")
+    st.write("Download historical data directly from TradingView, Yahoo Finance, or Moneycontrol.")
     
     st.info("""
     **API Limitations Reminder:**
     * **Yahoo Finance**: Excellent for 10+ years of Daily/Weekly data. Strictly limits `1m` intraday to the last 7 days, and `5m-90m` to the last 60 days.
-    * **TradingView**: No specific date limits, but hard-caps the total number of historical candles out put to ~5,000 per request.
+    * **TradingView**: No specific date limits, but hard-caps the total number of historical candles output to ~5,000 per request.
+    * **Moneycontrol**: Excellent for deep intraday data (allows up to 1 year of `1m`/`5m` history in a single request, vs. yfinance's 7/60 day limits). Daily history goes back to 2000. Intraday data older than 1 year is pruned by the server, but the app will automatically **Fetch & Merge** with your local CSV to preserve older history!
     """)
     
-    data_source_opt = st.selectbox("Data Source", ["TradingView", "Yahoo Finance"], help="TradingView is great for standard symbols. Yahoo Finance is better for very deep historical backtesting (10+ years).")
+    data_source_opt = st.selectbox("Data Source", ["TradingView", "Yahoo Finance", "Moneycontrol"], help="TradingView is great for standard symbols. Yahoo Finance is better for very deep historical backtesting (10+ years). Moneycontrol is best for deep intraday data.")
     
     col1, col2, col3 = st.columns(3)
     with col1:
         symbol = st.text_input("Symbol", value="SBIN").upper()
         if data_source_opt == "Yahoo Finance":
             st.caption("Tip: Add `.NS` for NSE stocks (e.g. SBIN.NS) or `.BO` for BSE.")
+        elif data_source_opt == "Moneycontrol":
+            st.caption("Tip: Enter standard tickers (e.g. SBIN, RELIANCE) or index names (e.g. NIFTY 50, NIFTY BANK). Suffixes like `.NS` are resolved automatically!")
     with col2:
         exchange = st.text_input("Exchange (TradingView only)", value="NSE").upper()
     with col3:
@@ -568,13 +668,18 @@ with tab1:
     
     if data_source_opt == "TradingView":
         st.caption("Note: TradingView limits free history. If your date range exceeds the API max (usually 5k-10k candles), the oldest data won't be fetched.")
-    else:
+    elif data_source_opt == "Yahoo Finance":
         st.caption("Note: Yahoo Finance limits intraday (1m, 5m, 1h) searches to the last 30-70 days, but has unlimited Daily/Weekly history.")
+    elif data_source_opt == "Moneycontrol":
+        st.caption("Note: Moneycontrol allows up to 1 year of intraday (1m, 5m, 1h) data and 25+ years of Daily history in a single call. Fetched data will be merged with your local CSV to preserve older history.")
     
     if st.button("Fetch Data", type="primary"):
         with st.spinner(f"Fetching {symbol} from {start_date_fetch} to {end_date_fetch} via {data_source_opt}..."):
             try:
                 from tvDatafeed import Interval
+                import importlib
+                import fetch_data
+                importlib.reload(fetch_data)
                 from fetch_data import fetch_data_hub
                 
                 if data_source_opt == "TradingView":
@@ -770,7 +875,7 @@ def run_strategy_diagnostics(code_string):
     return results
 
 # --- TAB 2: Strategy Editor ---
-with tab2:
+if active_tab == "Strategy Editor":
     st.header("Strategy IDE")
     st.write("Create a new strategy or edit an existing one. Use the integrated IDE to test for syntax and runtime errors.")
     
@@ -972,369 +1077,793 @@ class MySmaCross(Strategy):
             st.success("All checks passed. Your strategy is syntactically correct and executed successfully on the mock backtest simulator. It is ready for historical backtesting.")
 
 # --- TAB 3: Run Backtest ---
-with tab3:
-    st.header("Run Backtest")
+if active_tab == "Run Backtest":
+    sub_tab_ind, sub_tab_blk = st.tabs(["Individual Run", "Bulk Run"])
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.subheader("1. Select Dataset")
-        data_dir = "data"
-        data_files = []
-        if os.path.exists(data_dir):
-            data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
-            
-        if not data_files:
-            st.warning("No data found. Go to 'Fetch Data' tab first.")
-            selected_data = None
-        else:
-            selected_data = st.selectbox("Dataset (CSV)", data_files)
-            
-            # Timeframe resampling option
-            resample_tf = st.selectbox(
-                "Resample Timeframe (Before Backtesting)",
-                ["No Resampling (Use Native)", "5 Min ('5T')", "15 Min ('15T')", "30 Min ('30T')", "1 Hour ('1H')", "4 Hours ('4H')", "1 Day ('1D')"],
-                help="Resample the granular dataset to a higher timeframe before running the strategy."
-            )
-            
-            # --- Date Slicer UI ---
-            if selected_data:
+    with sub_tab_ind:
+        st.header("Run Backtest")
+
+        col1, col2 = st.columns(2)
+        with col1:
+            st.subheader("1. Select Dataset")
+            data_dir = "data"
+            data_files = []
+            if os.path.exists(data_dir):
+                data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
+
+            if not data_files:
+                st.warning("No data found. Go to 'Fetch Data' tab first.")
+                selected_data = None
+            else:
+                selected_data = st.selectbox("Dataset (CSV)", data_files)
+
+                # Timeframe resampling option
+                resample_tf = st.selectbox(
+                    "Resample Timeframe (Before Backtesting)",
+                    ["No Resampling (Use Native)", "5 Min ('5T')", "15 Min ('15T')", "30 Min ('30T')", "1 Hour ('1H')", "4 Hours ('4H')", "1 Day ('1D')"],
+                    help="Resample the granular dataset to a higher timeframe before running the strategy."
+                )
+
+                # --- Date Slicer UI ---
+                if selected_data:
+                    try:
+                        df_preview = pd.read_csv(os.path.join(data_dir, selected_data))
+                        df_preview.columns = df_preview.columns.str.strip()
+                        dt_col = None
+                        for col in df_preview.columns:
+                            if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
+                                dt_col = col
+                                break
+                        if dt_col:
+                            df_preview[dt_col] = pd.to_datetime(df_preview[dt_col], format='mixed')
+                            min_date = df_preview[dt_col].min().date()
+                            max_date = df_preview[dt_col].max().date()
+
+                            st.write(f"Available from **{min_date}** to **{max_date}**")
+
+                            # Add Time Slicing support for intraday data
+                            # We use two separate rows: Start (Date + Time) and End (Date + Time)
+                            st.markdown("**Filter Data Range**")
+                            d_col1, d_col2 = st.columns(2)
+
+                            import datetime
+                            with d_col1:
+                                start_d = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
+                                start_t = st.time_input("Start Time", value=datetime.time(0, 0))
+                            with d_col2:
+                                end_d = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
+                                end_t = st.time_input("End Time", value=datetime.time(23, 59))
+
+                            # Combine them into full datetime objects
+                            start_datetime = datetime.datetime.combine(start_d, start_t)
+                            end_datetime = datetime.datetime.combine(end_d, end_t)
+
+                        else:
+                            start_datetime, end_datetime = None, None
+                    except Exception as e:
+                        start_datetime, end_datetime = None, None
+                        st.warning(f"Could not load dates for preview: {e}")
+                else:
+                    start_datetime, end_datetime = None, None
+
+        with col2:
+            st.subheader("2. Select Strategy")
+            strategies_dir = "strategies"
+            strategy_files = []
+            if os.path.exists(strategies_dir):
+                strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')]
+
+            if not strategy_files:
+                st.warning("No strategies found. Go to 'Strategy Editor' to save one.")
+                selected_strategy_file = None
+            else:
+                selected_strategy_file = st.selectbox("Strategy File", strategy_files)
+
+        # 3. Advanced Parameters
+        st.subheader("3. Backtest Parameters")
+        with st.expander("Configure Parameters", expanded=True):
+            p1, p2, p3 = st.columns(3)
+            with p1:
+                init_cash = st.number_input("Initial Cash", min_value=1, value=10000, step=1000, 
+                                            help="The initial capital to start the backtest with. Example: 10000 means starting with $10,000.")
+                margin = st.number_input("Margin (1.0 = No Leverage)", min_value=0.01, max_value=1.0, value=1.0, step=0.01,
+                                         help="Required margin (ratio) of a leveraged account. Set to 1.0 for a cash account (no leverage). Set to e.g., 0.02 (1/50) for 50:1 leverage.")
+            with p2:
+                commission = st.number_input("Commission (e.g., 0.002 = 0.2%)", min_value=0.0, max_value=0.1, value=0.0, step=0.001, format="%.4f",
+                                             help="The commission rate as a fraction. Example: If your broker charges 0.2% per trade, set to 0.002. Applied on both entry and exit.")
+                spread = st.number_input("Spread / Slippage", min_value=0.0, max_value=0.1, value=0.0, step=0.0001, format="%.4f",
+                                         help="Constant bid-ask spread rate relative to the price. Useful for simulating slippage. Example: 0.0002 for 0.02% slippage.")
+            with p3:
+                trade_on_close = st.checkbox("Trade on Close", value=False,
+                                             help="If enabled, market orders will be filled at the current bar's closing price instead of the next bar's open.")
+                hedging = st.checkbox("Allow Hedging", value=False,
+                                      help="If enabled, allows you to be in Long and Short positions simultaneously. If disabled, opposite-facing orders will close existing trades first.")
+                exclusive_orders = st.checkbox("Exclusive Orders", value=True,
+                                               help="If enabled, every new order automatically closes the previous position, ensuring at most a single trade is active at a time.")
+                finalize_trades = st.checkbox("Finalize Trades", value=True,
+                                              help="If enabled, any open positions at the end of the backtest dataset will be automatically 'closed' at the last available price to realize their final PnL in the statistics.")
+
+        st.markdown("---")
+
+        # 4. Final Execution Code Override
+        st.subheader("4. Execution Script")
+        st.write("You can review and manually override the execution script before running. Note: `df`, `strat_class`, and parameter variables (like `init_cash`, `commission`) are available in the scope.")
+
+        default_exec_code = """
+    # Initialize Backtest
+    bt = Backtest(
+        df, 
+        strat_class, 
+        cash=init_cash,
+        commission=commission, 
+        spread=spread,
+        margin=margin,
+        trade_on_close=trade_on_close,
+        hedging=hedging,
+        exclusive_orders=exclusive_orders,
+        finalize_trades=finalize_trades
+    )
+
+    # Run standard backtest
+    stats = bt.run()
+
+    # Alternatively, you can use bt.optimize() here instead if you want to optimize parameters.
+    """
+        if 'exec_code_state' not in st.session_state:
+            st.session_state['exec_code_state'] = default_exec_code.strip()
+
+        exec_code = st_ace(
+            value=st.session_state['exec_code_state'],
+            language="python",
+            theme=st.session_state.get('ide_theme', 'dracula'),
+            keybinding=st.session_state.get('ide_keybinding', 'vscode'),
+            font_size=st.session_state.get('ide_font_size', 14),
+            tab_size=st.session_state.get('ide_tab_size', 4),
+            wrap=st.session_state.get('ide_wrap_lines', True),
+            show_gutter=st.session_state.get('ide_show_gutter', True),
+            height=280,
+            auto_update=False,
+            key="backtest_execution_editor"
+        )
+        st.session_state['exec_code_state'] = exec_code
+
+        col_reset, col_spacer = st.columns([4, 6])
+        with col_reset:
+            if st.button("Reset Script to Default"):
+                st.session_state['exec_code_state'] = default_exec_code.strip()
+                st.rerun()
+
+        if st.button("Run Script", type="primary", use_container_width=True):
+            if selected_data and selected_strategy_file:
+                with st.spinner("Executing user script..."):
+                    try:
+                        # 1. Load Data
+                        df = pd.read_csv(os.path.join(data_dir, selected_data))
+
+                        # Ensure column names are stripped of whitespace
+                        df.columns = df.columns.str.strip()
+
+                        # Rename standard columns to Title Case expected by Backtesting.py
+                        col_map = {c.lower(): c.capitalize() for c in df.columns}
+                        df.rename(columns=col_map, inplace=True)
+                        if 'Volume' not in df.columns and 'volume' in col_map: 
+                            df.rename(columns={'volume': 'Volume'}, inplace=True) # Edge case for volume
+
+                        # Locate Date/Time column
+                        datetime_col = None
+                        for col in df.columns:
+                            if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
+                                datetime_col = col
+                                break
+
+                        if datetime_col:
+                            # Auto-parse arbitrary datetime formats (e.g. 8/19/2004)
+                            df[datetime_col] = pd.to_datetime(df[datetime_col], format='mixed')
+                            df.set_index(datetime_col, inplace=True)
+                            df.sort_index(inplace=True)
+
+                            # Apply DateTime Slicing
+                            if start_datetime and end_datetime:
+                                # Convert to format matching pandas index
+                                try:
+                                    start_dt_pd = pd.to_datetime(start_datetime)
+                                    end_dt_pd = pd.to_datetime(end_datetime)
+                                    mask = (df.index >= start_dt_pd) & (df.index <= end_dt_pd)
+                                    df = df.loc[mask]
+                                    if df.empty:
+                                        st.error("DateTime slice resulted in an empty dataset. Please broaden the range.")
+                                        st.stop()
+                                except Exception as e:
+                                    st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
+
+                            # Apply Timeframe Resampling
+                            if resample_tf != "No Resampling (Use Native)":
+                                tf_map = {
+                                    "5 Min ('5T')": "5T",
+                                    "15 Min ('15T')": "15T",
+                                    "30 Min ('30T')": "30T",
+                                    "1 Hour ('1H')": "1H",
+                                    "4 Hours ('4H')": "4H",
+                                    "1 Day ('1D')": "1D"
+                                }
+                                rule = tf_map.get(resample_tf)
+                                if rule:
+                                    try:
+                                        resample_dict = {}
+                                        if 'Open' in df.columns: resample_dict['Open'] = 'first'
+                                        if 'High' in df.columns: resample_dict['High'] = 'max'
+                                        if 'Low' in df.columns: resample_dict['Low'] = 'min'
+                                        if 'Close' in df.columns: resample_dict['Close'] = 'last'
+                                        if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
+                                        for col in df.columns:
+                                            if col not in resample_dict:
+                                                resample_dict[col] = 'first'
+                                        df = df.resample(rule).agg(resample_dict).dropna()
+                                        st.info(f"Resampled dataset to `{rule}` timeframe. New shape: {df.shape}")
+                                    except Exception as resample_err:
+                                        st.warning(f"Failed to resample: {resample_err}. Running on native data.")
+
+                        elif not pd.api.types.is_datetime64_any_dtype(df.index):
+                            st.warning("Could not identify a clear Datetime column. The backtester index might be missing timestamps.")
+
+                        # 2. Load Strategy
+                        strat_class = load_strategy(os.path.join(strategies_dir, selected_strategy_file))
+                        if not strat_class:
+                            st.error("No valid Strategy class found in the file.")
+                            st.stop()
+
+                        # 3. Dynamic Execution
+                        # Define the local context for the script
+                        local_context = {
+                            'Backtest': Backtest,
+                            'df': df,
+                            'strat_class': strat_class,
+                            'init_cash': init_cash,
+                            'commission': commission,
+                            'spread': spread,
+                            'margin': margin,
+                            'trade_on_close': trade_on_close,
+                            'hedging': hedging,
+                            'exclusive_orders': exclusive_orders,
+                            'finalize_trades': finalize_trades
+                        }
+
+                        # Execute the user's override script
+                        exec(exec_code, {}, local_context)
+
+                        # Retrieve the results from the executed context
+                        if 'stats' not in local_context:
+                            st.error("The script must assign the results to a variable named `stats` (e.g., stats = bt.run()).")
+                            st.stop()
+
+                        stats = local_context['stats']
+                        if 'bt' in local_context:
+                            bt = local_context['bt']
+                        else:
+                            st.warning("`bt` object was not found, interactive plotting will be disabled.")
+                            bt = None
+
+                        # 4. Save results to disk automatically
+                        import datetime
+                        if not os.path.exists("results"):
+                            os.makedirs("results")
+
+                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+                        report_name = f"{selected_strategy_file.replace('.py', '')}_{selected_data.replace('.csv', '')}_{timestamp}"
+
+                        # Save stats
+                        stats_file = os.path.join("results", f"{report_name}_stats.csv")
+                        stats.drop(['_strategy', '_equity_curve', '_trades']).to_csv(stats_file)
+
+                        # Save trades
+                        trades_df = stats['_trades'] if '_trades' in stats else pd.DataFrame()
+                        trades_file = os.path.join("results", f"{report_name}_trades.csv")
+                        if not trades_df.empty:
+                            trades_df.to_csv(trades_file, index=False)
+
+                        # Generate and save Bokeh interactive chart
+                        plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
+                        if bt is not None:
+                            try:
+                                bt.plot(filename=plot_file, open_browser=False)
+                            except Exception as plot_err:
+                                st.warning(f"Failed to generate interactive Bokeh chart: {plot_err}")
+                                plot_file = None
+                        else:
+                            plot_file = None
+
+                        # 5. Extract Metrics & Run Monte Carlo
+                        metrics = calculate_strategy_metrics(stats, trades_df)
+
+                        mc_results = None
+                        if not trades_df.empty and 'ReturnPct' in trades_df.columns:
+                            returns = trades_df['ReturnPct'].values / 100.0
+                            if len(returns) >= 5:
+                                mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
+
+                        # 6. Render Unified Dashboard
+                        st.success(f"Backtest successfully executed! (Saved as: `{report_name}`)")
+
+                        render_unified_dashboard(report_name, metrics, trades_df, plot_file, mc_results)
+
+                        # 7. Alpha Comparison
+                        st.subheader("Benchmark Alpha Comparison")
+                        benchmark_path = "data/benchmark_nifty50.csv"
+
+                        if os.path.exists(benchmark_path) and '_equity_curve' in stats:
+                            try:
+                                # Load Benchmark
+                                bm_df = pd.read_csv(benchmark_path, index_col=0, parse_dates=True)
+                                bm_df.index = pd.to_datetime(bm_df.index, utc=True).tz_localize(None)
+                                bm_df.sort_index(inplace=True)
+                                bm_df = bm_df[~bm_df.index.duplicated(keep='last')]
+
+                                # Extract Strategy Equity
+                                strat_equity = stats['_equity_curve']['Equity']
+                                strat_equity.index = pd.to_datetime(strat_equity.index, utc=True).tz_localize(None)
+                                strat_equity = strat_equity[~strat_equity.index.duplicated(keep='last')].sort_index()
+
+                                # Reindex Benchmark to perfectly match strategy date points (forward filling missing granularity)
+                                bm_aligned = bm_df['Close'].reindex(strat_equity.index, method='ffill')
+
+                                valid_start = bm_aligned.first_valid_index()
+                                if valid_start:
+                                    strat_eq_clean = strat_equity.loc[valid_start:]
+                                    bm_clean = bm_aligned.loc[valid_start:]
+
+                                    # Normalize both to start at 0%
+                                    strat_ret_pct = (strat_eq_clean / strat_eq_clean.iloc[0] - 1) * 100
+                                    bm_ret_pct = (bm_clean / bm_clean.iloc[0] - 1) * 100
+
+                                    # Compile for rendering
+                                    alpha_df = pd.DataFrame({
+                                        'Strategy Return (%)': strat_ret_pct,
+                                        'Nifty 50 Benchmark (%)': bm_ret_pct
+                                    })
+
+                                    final_alpha = strat_ret_pct.iloc[-1] - bm_ret_pct.iloc[-1]
+                                    a_col1, a_col2 = st.columns([8, 2])
+                                    with a_col1:
+                                        st.line_chart(alpha_df, use_container_width=True)
+                                    with a_col2:
+                                        st.metric("Strategy Total", f"{strat_ret_pct.iloc[-1]:.2f}%")
+                                        st.metric("Benchmark Total", f"{bm_ret_pct.iloc[-1]:.2f}%")
+                                        st.metric("Net Alpha", f"{final_alpha:.2f}%", delta=f"{final_alpha:.2f}%")
+                                else:
+                                    st.warning("Strategy dates are completely outside the Nifty 50 benchmark range.")
+                            except Exception as alpha_err:
+                                st.warning(f"Failed to generate Alpha chart: {alpha_err}")
+                        else:
+                            st.info("Nifty 50 benchmark data missing. Skipping alpha compilation.")
+
+                    except Exception as e:
+                        st.error(f"Error during backtest: {e}")
+            else:
+                st.error("Please select both a dataset and a strategy.")
+
+    
+    with sub_tab_blk:
+        st.header("Bulk Testing Engine")
+        st.write("Automatically slice your dataset into individual periods (e.g., Daily) and run your strategy on each slice independently to rank performance.")
+
+        b_col1, b_col2 = st.columns(2)
+        with b_col1:
+            data_dir = "data"
+            data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] if os.path.exists(data_dir) else []
+
+            st.info("**Note:** When selecting multiple datasets, ensure they all share the same Native Granularity (e.g., all 5-minute tickers, or all Daily).")
+            selected_bulk_data = st.multiselect("Select Datasets", data_files, key="bulk_data", help="Select one or more historical datasets to test against.")
+
+            # --- Date Slicer UI (from Tab 3) ---
+            if selected_bulk_data:
                 try:
-                    df_preview = pd.read_csv(os.path.join(data_dir, selected_data))
-                    df_preview.columns = df_preview.columns.str.strip()
-                    dt_col = None
-                    for col in df_preview.columns:
-                        if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
-                            dt_col = col
-                            break
-                    if dt_col:
-                        df_preview[dt_col] = pd.to_datetime(df_preview[dt_col], format='mixed')
-                        min_date = df_preview[dt_col].min().date()
-                        max_date = df_preview[dt_col].max().date()
-                        
-                        st.write(f"Available from **{min_date}** to **{max_date}**")
-                        
-                        # Add Time Slicing support for intraday data
-                        # We use two separate rows: Start (Date + Time) and End (Date + Time)
+                    min_dates, max_dates = [], []
+                    for ds in selected_bulk_data:
+                        df_preview = pd.read_csv(os.path.join(data_dir, ds))
+                        df_preview.columns = df_preview.columns.str.strip()
+                        dt_col = next((c for c in df_preview.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
+                        if dt_col:
+                            df_preview[dt_col] = pd.to_datetime(df_preview[dt_col], format='mixed')
+                            min_dates.append(df_preview[dt_col].min().date())
+                            max_dates.append(df_preview[dt_col].max().date())
+
+                    if min_dates and max_dates:
+                        global_min = max(min_dates)
+                        global_max = min(max_dates)
+
+                        if global_min <= global_max:
+                            st.success(f"Combined Data Overlap Available: **{global_min}** to **{global_max}**")
+                        else:
+                            st.warning("**No overlapping dates found between the selected datasets.**")
+                            global_min, global_max = min(min_dates), max(max_dates)
+
                         st.markdown("**Filter Data Range**")
                         d_col1, d_col2 = st.columns(2)
-                        
+
                         import datetime
                         with d_col1:
-                            start_d = st.date_input("Start Date", value=min_date, min_value=min_date, max_value=max_date)
-                            start_t = st.time_input("Start Time", value=datetime.time(0, 0))
+                            start_d = st.date_input("Start Date", value=global_min, key="b_sd")
+                            start_t = st.time_input("Start Time", value=datetime.time(0, 0), key="b_st")
                         with d_col2:
-                            end_d = st.date_input("End Date", value=max_date, min_value=min_date, max_value=max_date)
-                            end_t = st.time_input("End Time", value=datetime.time(23, 59))
-                            
-                        # Combine them into full datetime objects
-                        start_datetime = datetime.datetime.combine(start_d, start_t)
-                        end_datetime = datetime.datetime.combine(end_d, end_t)
-                        
+                            end_d = st.date_input("End Date", value=global_max, key="b_ed")
+                            end_t = st.time_input("End Time", value=datetime.time(23, 59), key="b_et")
+
+                        start_datetime_bulk = datetime.datetime.combine(start_d, start_t)
+                        end_datetime_bulk = datetime.datetime.combine(end_d, end_t)
+
                     else:
-                        start_datetime, end_datetime = None, None
+                        start_datetime_bulk, end_datetime_bulk = None, None
                 except Exception as e:
-                    start_datetime, end_datetime = None, None
+                    start_datetime_bulk, end_datetime_bulk = None, None
                     st.warning(f"Could not load dates for preview: {e}")
             else:
-                start_datetime, end_datetime = None, None
-            
-    with col2:
-        st.subheader("2. Select Strategy")
-        strategies_dir = "strategies"
-        strategy_files = []
-        if os.path.exists(strategies_dir):
-            strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')]
-            
-        if not strategy_files:
-            st.warning("No strategies found. Go to 'Strategy Editor' to save one.")
-            selected_strategy_file = None
-        else:
-            selected_strategy_file = st.selectbox("Strategy File", strategy_files)
-        
-    # 3. Advanced Parameters
-    st.subheader("3. Backtest Parameters")
-    with st.expander("Configure Parameters", expanded=True):
-        p1, p2, p3 = st.columns(3)
-        with p1:
-            init_cash = st.number_input("Initial Cash", min_value=1, value=10000, step=1000, 
-                                        help="The initial capital to start the backtest with. Example: 10000 means starting with $10,000.")
-            margin = st.number_input("Margin (1.0 = No Leverage)", min_value=0.01, max_value=1.0, value=1.0, step=0.01,
-                                     help="Required margin (ratio) of a leveraged account. Set to 1.0 for a cash account (no leverage). Set to e.g., 0.02 (1/50) for 50:1 leverage.")
-        with p2:
-            commission = st.number_input("Commission (e.g., 0.002 = 0.2%)", min_value=0.0, max_value=0.1, value=0.0, step=0.001, format="%.4f",
-                                         help="The commission rate as a fraction. Example: If your broker charges 0.2% per trade, set to 0.002. Applied on both entry and exit.")
-            spread = st.number_input("Spread / Slippage", min_value=0.0, max_value=0.1, value=0.0, step=0.0001, format="%.4f",
-                                     help="Constant bid-ask spread rate relative to the price. Useful for simulating slippage. Example: 0.0002 for 0.02% slippage.")
-        with p3:
-            trade_on_close = st.checkbox("Trade on Close", value=False,
-                                         help="If enabled, market orders will be filled at the current bar's closing price instead of the next bar's open.")
-            hedging = st.checkbox("Allow Hedging", value=False,
-                                  help="If enabled, allows you to be in Long and Short positions simultaneously. If disabled, opposite-facing orders will close existing trades first.")
-            exclusive_orders = st.checkbox("Exclusive Orders", value=True,
-                                           help="If enabled, every new order automatically closes the previous position, ensuring at most a single trade is active at a time.")
-            finalize_trades = st.checkbox("Finalize Trades", value=True,
-                                          help="If enabled, any open positions at the end of the backtest dataset will be automatically 'closed' at the last available price to realize their final PnL in the statistics.")
-            
-    st.markdown("---")
-    
-    # 4. Final Execution Code Override
-    st.subheader("4. Execution Script")
-    st.write("You can review and manually override the execution script before running. Note: `df`, `strat_class`, and parameter variables (like `init_cash`, `commission`) are available in the scope.")
-    
-    default_exec_code = """
-# Initialize Backtest
-bt = Backtest(
-    df, 
-    strat_class, 
-    cash=init_cash,
-    commission=commission, 
-    spread=spread,
-    margin=margin,
-    trade_on_close=trade_on_close,
-    hedging=hedging,
-    exclusive_orders=exclusive_orders,
-    finalize_trades=finalize_trades
-)
+                start_datetime_bulk, end_datetime_bulk = None, None
 
-# Run standard backtest
-stats = bt.run()
+        with b_col2:
+            strategies_dir = "strategies"
+            strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')] if os.path.exists(strategies_dir) else []
+            selected_bulk_strat = st.selectbox("Select Strategy", strategy_files, key="bulk_strat")
 
-# Alternatively, you can use bt.optimize() here instead if you want to optimize parameters.
-"""
-    if 'exec_code_state' not in st.session_state:
-        st.session_state['exec_code_state'] = default_exec_code.strip()
+        split_freq = st.selectbox("Split Dataset By:", ["Whole Dataset (No Split)", "Daily", "Weekly", "Monthly", "Intraday (Time Windows)", "Resample Timeframes"], help="Choose 'Whole Dataset' to test across the entire filtered date range without breaking it down. Select 'Intraday' to test specific hours within each day. Select 'Resample Timeframes' to test across multiple candle intervals.")
 
-    exec_code = st_ace(
-        value=st.session_state['exec_code_state'],
-        language="python",
-        theme=st.session_state.get('ide_theme', 'dracula'),
-        keybinding=st.session_state.get('ide_keybinding', 'vscode'),
-        font_size=st.session_state.get('ide_font_size', 14),
-        tab_size=st.session_state.get('ide_tab_size', 4),
-        wrap=st.session_state.get('ide_wrap_lines', True),
-        show_gutter=st.session_state.get('ide_show_gutter', True),
-        height=280,
-        auto_update=False,
-        key="backtest_execution_editor"
-    )
-    st.session_state['exec_code_state'] = exec_code
-    
-    col_reset, col_spacer = st.columns([4, 6])
-    with col_reset:
-        if st.button("Reset Script to Default"):
-            st.session_state['exec_code_state'] = default_exec_code.strip()
-            st.rerun()
-    
-    if st.button("Run Script", type="primary", use_container_width=True):
-        if selected_data and selected_strategy_file:
-            with st.spinner("Executing user script..."):
+        # Intraday dynamic UI
+        intraday_windows = []
+        if split_freq == "Intraday (Time Windows)":
+            st.markdown("**Define Intraday Windows**")
+            num_windows = st.number_input("Number of Time Windows per Day", min_value=1, max_value=5, value=2, step=1)
+            import datetime
+            for w in range(num_windows):
+                c1, c2 = st.columns(2)
+                with c1:
+                    w_start = st.time_input(f"Window {w+1} Start", value=datetime.time(9 + w, 0), key=f"w_s_{w}")
+                with c2:
+                    w_end = st.time_input(f"Window {w+1} End", value=datetime.time(10 + w, 0), key=f"w_e_{w}")
+                intraday_windows.append((w_start, w_end))
+
+        # Resample Timeframes dynamic UI
+        bulk_resample_tfs = []
+        if split_freq == "Resample Timeframes":
+            st.markdown("**Select Timeframes to Test**")
+            tf_options = {
+                "5 Min ('5T')": "5T",
+                "15 Min ('15T')": "15T",
+                "30 Min ('30T')": "30T",
+                "1 Hour ('1H')": "1H",
+                "4 Hours ('4H')": "4H",
+                "1 Day ('1D')": "1D"
+            }
+            selected_tf_labels = st.multiselect(
+                "Timeframes to Evaluate",
+                options=list(tf_options.keys()),
+                default=["5 Min ('5T')", "15 Min ('15T')", "1 Hour ('1H')", "1 Day ('1D')"],
+                help="Select one or more timeframes to resample the granular dataset into."
+            )
+            bulk_resample_tfs = [tf_options[lbl] for lbl in selected_tf_labels]
+
+        st.markdown("**(Uses the Advanced Parameters currently set in Tab 3 `Run Backtest`)**")
+
+        # Estimate test count
+        total_tests = 0
+        test_details = []
+        if selected_bulk_data:
+            for ds in selected_bulk_data:
                 try:
-                    # 1. Load Data
-                    df = pd.read_csv(os.path.join(data_dir, selected_data))
-                    
-                    # Ensure column names are stripped of whitespace
-                    df.columns = df.columns.str.strip()
-                    
-                    # Rename standard columns to Title Case expected by Backtesting.py
-                    col_map = {c.lower(): c.capitalize() for c in df.columns}
-                    df.rename(columns=col_map, inplace=True)
-                    if 'Volume' not in df.columns and 'volume' in col_map: 
-                        df.rename(columns={'volume': 'Volume'}, inplace=True) # Edge case for volume
+                    # Read only index/datetime column for speed
+                    df_temp = pd.read_csv(os.path.join(data_dir, ds), nrows=5)
+                    df_temp.columns = df_temp.columns.str.strip()
+                    dt_col = next((c for c in df_temp.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
+                    if dt_col:
+                        df_ds = pd.read_csv(os.path.join(data_dir, ds), usecols=[dt_col])
+                        df_ds.columns = df_ds.columns.str.strip()
+                        df_ds[dt_col] = pd.to_datetime(df_ds[dt_col], format='mixed')
+                        df_ds.set_index(dt_col, inplace=True)
 
-                    # Locate Date/Time column
-                    datetime_col = None
-                    for col in df.columns:
-                        if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
-                            datetime_col = col
-                            break
-                            
-                    if datetime_col:
-                        # Auto-parse arbitrary datetime formats (e.g. 8/19/2004)
-                        df[datetime_col] = pd.to_datetime(df[datetime_col], format='mixed')
-                        df.set_index(datetime_col, inplace=True)
-                        df.sort_index(inplace=True)
-                        
-                        # Apply DateTime Slicing
-                        if start_datetime and end_datetime:
-                            # Convert to format matching pandas index
-                            try:
-                                start_dt_pd = pd.to_datetime(start_datetime)
-                                end_dt_pd = pd.to_datetime(end_datetime)
-                                mask = (df.index >= start_dt_pd) & (df.index <= end_dt_pd)
-                                df = df.loc[mask]
-                                if df.empty:
-                                    st.error("DateTime slice resulted in an empty dataset. Please broaden the range.")
-                                    st.stop()
-                            except Exception as e:
-                                st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
-                                
-                        # Apply Timeframe Resampling
-                        if resample_tf != "No Resampling (Use Native)":
-                            tf_map = {
-                                "5 Min ('5T')": "5T",
-                                "15 Min ('15T')": "15T",
-                                "30 Min ('30T')": "30T",
-                                "1 Hour ('1H')": "1H",
-                                "4 Hours ('4H')": "4H",
-                                "1 Day ('1D')": "1D"
-                            }
-                            rule = tf_map.get(resample_tf)
-                            if rule:
-                                try:
-                                    resample_dict = {}
-                                    if 'Open' in df.columns: resample_dict['Open'] = 'first'
-                                    if 'High' in df.columns: resample_dict['High'] = 'max'
-                                    if 'Low' in df.columns: resample_dict['Low'] = 'min'
-                                    if 'Close' in df.columns: resample_dict['Close'] = 'last'
-                                    if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
-                                    for col in df.columns:
-                                        if col not in resample_dict:
-                                            resample_dict[col] = 'first'
-                                    df = df.resample(rule).agg(resample_dict).dropna()
-                                    st.info(f"Resampled dataset to `{rule}` timeframe. New shape: {df.shape}")
-                                except Exception as resample_err:
-                                    st.warning(f"Failed to resample: {resample_err}. Running on native data.")
-                                    
-                    elif not pd.api.types.is_datetime64_any_dtype(df.index):
-                        st.warning("Could not identify a clear Datetime column. The backtester index might be missing timestamps.")
-                        
-                    # 2. Load Strategy
-                    strat_class = load_strategy(os.path.join(strategies_dir, selected_strategy_file))
-                    if not strat_class:
-                        st.error("No valid Strategy class found in the file.")
-                        st.stop()
-                    
-                    # 3. Dynamic Execution
-                    # Define the local context for the script
-                    local_context = {
-                        'Backtest': Backtest,
-                        'df': df,
-                        'strat_class': strat_class,
-                        'init_cash': init_cash,
-                        'commission': commission,
-                        'spread': spread,
-                        'margin': margin,
-                        'trade_on_close': trade_on_close,
-                        'hedging': hedging,
-                        'exclusive_orders': exclusive_orders,
-                        'finalize_trades': finalize_trades
-                    }
-                    
-                    # Execute the user's override script
-                    exec(exec_code, {}, local_context)
-                    
-                    # Retrieve the results from the executed context
-                    if 'stats' not in local_context:
-                        st.error("The script must assign the results to a variable named `stats` (e.g., stats = bt.run()).")
-                        st.stop()
-                    
-                    stats = local_context['stats']
-                    if 'bt' in local_context:
-                        bt = local_context['bt']
-                    else:
-                        st.warning("`bt` object was not found, interactive plotting will be disabled.")
-                        bt = None
-                    
-                    # 4. Save results to disk automatically
-                    import datetime
-                    if not os.path.exists("results"):
-                        os.makedirs("results")
-                        
-                    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                    report_name = f"{selected_strategy_file.replace('.py', '')}_{selected_data.replace('.csv', '')}_{timestamp}"
-                    
-                    # Save stats
-                    stats_file = os.path.join("results", f"{report_name}_stats.csv")
-                    stats.drop(['_strategy', '_equity_curve', '_trades']).to_csv(stats_file)
-                    
-                    # Save trades
-                    trades_df = stats['_trades'] if '_trades' in stats else pd.DataFrame()
-                    trades_file = os.path.join("results", f"{report_name}_trades.csv")
-                    if not trades_df.empty:
-                        trades_df.to_csv(trades_file, index=False)
-                        
-                    # Generate and save Bokeh interactive chart
-                    plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
-                    if bt is not None:
-                        try:
-                            bt.plot(filename=plot_file, open_browser=False)
-                        except Exception as plot_err:
-                            st.warning(f"Failed to generate interactive Bokeh chart: {plot_err}")
-                            plot_file = None
-                    else:
-                        plot_file = None
+                        if start_datetime_bulk and end_datetime_bulk:
+                            start_dt_pd = pd.to_datetime(start_datetime_bulk)
+                            end_dt_pd = pd.to_datetime(end_datetime_bulk)
+                            df_ds = df_ds.loc[(df_ds.index >= start_dt_pd) & (df_ds.index <= end_dt_pd)]
 
-                    # 5. Extract Metrics & Run Monte Carlo
-                    metrics = calculate_strategy_metrics(stats, trades_df)
-                    
-                    mc_results = None
-                    if not trades_df.empty and 'ReturnPct' in trades_df.columns:
-                        returns = trades_df['ReturnPct'].values / 100.0
-                        if len(returns) >= 5:
-                            mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
-                            
-                    # 6. Render Unified Dashboard
-                    st.success(f"Backtest successfully executed! (Saved as: `{report_name}`)")
-                    
-                    render_unified_dashboard(report_name, metrics, trades_df, plot_file, mc_results)
-                    
-                    # 7. Alpha Comparison
-                    st.subheader("Benchmark Alpha Comparison")
-                    benchmark_path = "data/benchmark_nifty50.csv"
-                    
-                    if os.path.exists(benchmark_path) and '_equity_curve' in stats:
-                        try:
-                            # Load Benchmark
-                            bm_df = pd.read_csv(benchmark_path, index_col=0, parse_dates=True)
-                            bm_df.index = pd.to_datetime(bm_df.index, utc=True).tz_localize(None)
-                            bm_df.sort_index(inplace=True)
-                            bm_df = bm_df[~bm_df.index.duplicated(keep='last')]
-                            
-                            # Extract Strategy Equity
-                            strat_equity = stats['_equity_curve']['Equity']
-                            strat_equity.index = pd.to_datetime(strat_equity.index, utc=True).tz_localize(None)
-                            strat_equity = strat_equity[~strat_equity.index.duplicated(keep='last')].sort_index()
-                            
-                            # Reindex Benchmark to perfectly match strategy date points (forward filling missing granularity)
-                            bm_aligned = bm_df['Close'].reindex(strat_equity.index, method='ffill')
-                            
-                            valid_start = bm_aligned.first_valid_index()
-                            if valid_start:
-                                strat_eq_clean = strat_equity.loc[valid_start:]
-                                bm_clean = bm_aligned.loc[valid_start:]
-                                
-                                # Normalize both to start at 0%
-                                strat_ret_pct = (strat_eq_clean / strat_eq_clean.iloc[0] - 1) * 100
-                                bm_ret_pct = (bm_clean / bm_clean.iloc[0] - 1) * 100
-                                
-                                # Compile for rendering
-                                alpha_df = pd.DataFrame({
-                                    'Strategy Return (%)': strat_ret_pct,
-                                    'Nifty 50 Benchmark (%)': bm_ret_pct
-                                })
-                                
-                                final_alpha = strat_ret_pct.iloc[-1] - bm_ret_pct.iloc[-1]
-                                a_col1, a_col2 = st.columns([8, 2])
-                                with a_col1:
-                                    st.line_chart(alpha_df, use_container_width=True)
-                                with a_col2:
-                                    st.metric("Strategy Total", f"{strat_ret_pct.iloc[-1]:.2f}%")
-                                    st.metric("Benchmark Total", f"{bm_ret_pct.iloc[-1]:.2f}%")
-                                    st.metric("Net Alpha", f"{final_alpha:.2f}%", delta=f"{final_alpha:.2f}%")
-                            else:
-                                st.warning("Strategy dates are completely outside the Nifty 50 benchmark range.")
-                        except Exception as alpha_err:
-                            st.warning(f"Failed to generate Alpha chart: {alpha_err}")
+                        if split_freq == "Whole Dataset (No Split)":
+                            count = 1
+                        elif split_freq == "Daily":
+                            count = len(df_ds.index.normalize().unique())
+                        elif split_freq == "Weekly":
+                            count = len(df_ds.groupby([df_ds.index.isocalendar().year, df_ds.index.isocalendar().week]))
+                        elif split_freq == "Monthly":
+                            count = len(df_ds.groupby([df_ds.index.year, df_ds.index.month]))
+                        elif split_freq == "Intraday (Time Windows)":
+                            num_days = len(df_ds.index.normalize().unique())
+                            count = num_days * len(intraday_windows)
+                        elif split_freq == "Resample Timeframes":
+                            count = len(bulk_resample_tfs)
+                        else:
+                            count = 0
+
+                        total_tests += count
+                        test_details.append(f"- `{ds}`: **{count}** tests")
                     else:
-                        st.info("Nifty 50 benchmark data missing. Skipping alpha compilation.")
-                        
+                        test_details.append(f"- `{ds}`: Datetime column not found")
                 except Exception as e:
-                    st.error(f"Error during backtest: {e}")
-        else:
-            st.error("Please select both a dataset and a strategy.")
+                    test_details.append(f"- `{ds}`: Error estimating ({e})")
+
+            # Display the scale estimation
+            st.markdown("### Bulk Backtest Scale Estimate")
+            col_scale1, col_scale2 = st.columns([4, 6])
+            with col_scale1:
+                st.metric("Total Projected Runs", f"{total_tests}")
+            with col_scale2:
+                st.markdown("**Runs Breakdown:**")
+                for detail in test_details:
+                    st.markdown(detail)
+
+            if total_tests > 100:
+                st.warning("**Warning:** Running over 100 backtests might take some time depending on hardware and dataset size.")
+            st.markdown("---")
+
+        if st.button("Run Bulk Test", type="primary", use_container_width=True):
+            if not selected_bulk_data or not selected_bulk_strat:
+                st.error("Please select at least one dataset and a strategy.")
+            elif split_freq == "Resample Timeframes" and not bulk_resample_tfs:
+                st.error("Please select at least one timeframe to test.")
+            else:
+                with st.spinner(f"Running Bulk {split_freq} tests across {len(selected_bulk_data)} datasets..."):
+                    try:
+                        all_stats = []
+                        all_trades_lists = []
+
+                        # 1. Load Strategy
+                        strat_class = load_strategy(os.path.join(strategies_dir, selected_bulk_strat))
+                        if not strat_class:
+                            st.error("No valid Strategy class found in the file.")
+                            st.stop()
+
+                        # 2. Iterate over all selected datasets
+                        for ds_idx, dataset_file in enumerate(selected_bulk_data):
+                            st.write(f"**Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: `{dataset_file}`**")
+
+                            df = pd.read_csv(os.path.join(data_dir, dataset_file))
+                            df.columns = df.columns.str.strip()
+                            col_map = {c.lower(): c.capitalize() for c in df.columns}
+                            df.rename(columns=col_map, inplace=True)
+                            if 'Volume' not in df.columns and 'volume' in col_map: 
+                                df.rename(columns={'volume': 'Volume'}, inplace=True)
+
+                            dt_col = None
+                            for col in df.columns:
+                                if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
+                                    dt_col = col
+                                    break
+
+                            if not dt_col:
+                                st.warning(f"Skipping `{dataset_file}`: No datetime column found.")
+                                continue
+
+                            df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
+                            df.set_index(dt_col, inplace=True)
+                            df.sort_index(inplace=True)
+
+                            # --- Granularity Validation ---
+                            # Calculate the median time difference between rows to guess the dataset's native timeframe
+                            if len(df) > 1:
+                                median_diff = df.index.to_series().diff().median()
+
+                                if split_freq == "Intraday (Time Windows)" and median_diff >= pd.Timedelta(days=1):
+                                    st.error(f"Granularity Mismatch for `{dataset_file}`: You requested an **Intraday** split, but this dataset appears to only contain **Daily** (or higher) candles. Skipping.")
+                                    continue
+
+                                if split_freq == "Daily" and median_diff >= pd.Timedelta(days=7):
+                                    st.error(f"Granularity Mismatch for `{dataset_file}`: You requested a **Daily** split, but this dataset appears to only contain **Weekly/Monthly** candles. Skipping.")
+                                    continue
+
+                            # Apply DateTime Slicing
+                            if start_datetime_bulk and end_datetime_bulk:
+                                try:
+                                    start_dt_pd = pd.to_datetime(start_datetime_bulk)
+                                    end_dt_pd = pd.to_datetime(end_datetime_bulk)
+                                    mask = (df.index >= start_dt_pd) & (df.index <= end_dt_pd)
+                                    df = df.loc[mask]
+                                    if df.empty:
+                                        st.warning(f"DateTime slice resulted in an empty dataset for {dataset_file}.")
+                                        continue
+                                except Exception as e:
+                                    st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
+
+
+                            # 3. Create Chunks
+                            chunks = []
+                            sym_name = dataset_file.replace('.csv', '')
+
+                            if split_freq == "Whole Dataset (No Split)":
+                                chunks = [(f"{sym_name} | Full Range", df)]
+                            elif split_freq == "Daily":
+                                chunks = [(f"{sym_name} | " + str(group.index[0].date()), group) for _, group in df.groupby(df.index.date)]
+                            elif split_freq == "Weekly":
+                                chunks = [(f"{sym_name} | {group.index[0].isocalendar().year}-W{group.index[0].isocalendar().week:02d}", group) for _, group in df.groupby([df.index.isocalendar().year, df.index.isocalendar().week])]
+                            elif split_freq == "Monthly":
+                                chunks = [(f"{sym_name} | {group.index[0].year}-{group.index[0].month:02d}", group) for _, group in df.groupby([df.index.year, df.index.month])]
+                            elif split_freq == "Intraday (Time Windows)":
+                                for date, daily_df in df.groupby(df.index.date):
+                                    for start_t, end_t in intraday_windows:
+                                        try:
+                                            s_str = start_t.strftime("%H:%M:%S")
+                                            e_str = end_t.strftime("%H:%M:%S")
+                                            window_df = daily_df.between_time(s_str, e_str)
+                                            if not window_df.empty:
+                                                label = f"{sym_name} | {date} ({s_str[:5]}-{e_str[:5]})"
+                                                chunks.append((label, window_df))
+                                        except Exception as e:
+                                            st.warning(f"Failed to slice window {s_str}-{e_str} on {date}: {e}")
+                            elif split_freq == "Resample Timeframes":
+                                for tf in bulk_resample_tfs:
+                                    try:
+                                        resample_dict = {}
+                                        if 'Open' in df.columns: resample_dict['Open'] = 'first'
+                                        if 'High' in df.columns: resample_dict['High'] = 'max'
+                                        if 'Low' in df.columns: resample_dict['Low'] = 'min'
+                                        if 'Close' in df.columns: resample_dict['Close'] = 'last'
+                                        if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
+                                        for col in df.columns:
+                                            if col not in resample_dict:
+                                                resample_dict[col] = 'first'
+
+                                        resampled_df = df.resample(tf).agg(resample_dict).dropna()
+                                        if not resampled_df.empty:
+                                            chunks.append((f"{sym_name} | TF: {tf}", resampled_df))
+                                    except Exception as e:
+                                        st.warning(f"Failed to resample `{dataset_file}` to `{tf}`: {e}")
+
+                            if not chunks:
+                                st.warning(f"No valid data chunks found to process in `{dataset_file}`.")
+                                continue
+
+                            st.info(f"Generated {len(chunks)} {split_freq} slices for `{dataset_file}`. Executing engine...")
+
+                            # 4. Execute Loop for this dataset
+                            progress_bar = st.progress(0)
+                            total_chunks = len(chunks)
+
+                            for i, (chunk_label, chunk_df) in enumerate(chunks):
+                                if len(chunk_df) < 5:  # Skip tiny chunks (e.g. half days with no data)
+                                    continue
+
+                                bt = Backtest(
+                                    chunk_df, 
+                                    strat_class, 
+                                    cash=init_cash,
+                                    commission=commission, 
+                                    spread=spread,
+                                    margin=margin,
+                                    trade_on_close=trade_on_close,
+                                    hedging=hedging,
+                                    exclusive_orders=exclusive_orders,
+                                    finalize_trades=finalize_trades
+                                )
+
+                                stats = bt.run()
+
+                                chunk_trades = stats['_trades'] if '_trades' in stats else pd.DataFrame()
+                                if not chunk_trades.empty:
+                                    t_copy = chunk_trades.copy()
+                                    t_copy['Chunk'] = chunk_label
+                                    all_trades_lists.append(t_copy)
+
+                                # Calculate full institutional metrics for this chunk
+                                chunk_metrics = calculate_strategy_metrics(stats, chunk_trades)
+                                chunk_metrics_series = pd.Series(chunk_metrics)
+                                chunk_metrics_series.name = chunk_label
+                                all_stats.append(chunk_metrics_series)
+
+                                # Update progress
+                                progress_bar.progress((i + 1) / total_chunks)
+
+                        # 5. Aggregate and Display
+                        if all_stats:
+                            results_df = pd.DataFrame(all_stats)
+
+                            combined_trades_df = pd.DataFrame()
+                            if all_trades_lists:
+                                combined_trades_df = pd.concat(all_trades_lists, ignore_index=True)
+
+                            st.success("Bulk Testing Complete!")
+
+                            # --- Auto Export Results (to results/ folder) ---
+                            results_dir = "results"
+                            if not os.path.exists(results_dir):
+                                os.makedirs(results_dir)
+
+                            import datetime
+                            timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+
+                            if len(selected_bulk_data) > 1:
+                                target_tag = "Multiple_Datasets"
+                            else:
+                                target_tag = selected_bulk_data[0].replace('.csv', '')
+
+                            bulk_report_base = f"BULK_{split_freq}_{selected_bulk_strat.replace('.py', '')}_{target_tag}_{timestamp}"
+                            bulk_stats_path = os.path.join(results_dir, f"{bulk_report_base}_stats.csv")
+                            bulk_trades_path = os.path.join(results_dir, f"{bulk_report_base}_trades.csv")
+
+                            results_df.to_csv(bulk_stats_path)
+                            if not combined_trades_df.empty:
+                                combined_trades_df.to_csv(bulk_trades_path, index=False)
+
+                            st.info(f"Bulk files successfully exported to `results/`.")
+
+                            # Show Combined Portfolio Performance
+                            if not combined_trades_df.empty:
+                                st.markdown("---")
+                                st.subheader("Combined Portfolio Performance")
+                                st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
+
+                                port_metrics = calculate_strategy_metrics({}, combined_trades_df)
+
+                                p_mc_results = None
+                                if 'ReturnPct' in combined_trades_df.columns:
+                                    returns = combined_trades_df['ReturnPct'].values / 100.0
+                                    if len(returns) >= 5:
+                                        p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
+
+                                pm1, pm2, pm3, pm4 = st.columns(4)
+                                pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
+                                pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
+                                pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
+                                pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
+
+                                # Render Portfolio Monte Carlo if available
+                                if p_mc_results:
+                                    with st.expander("Portfolio Monte Carlo Analysis", expanded=False):
+                                        st.write(f"Expected Portfolio Final Equity: **${p_mc_results['expected_final_equity']:,.2f}**")
+                                        st.write(f"Portfolio Median Drawdown: **{p_mc_results['median_max_drawdown']:.2f}%**")
+                                        st.write(f"Portfolio 95% Value-at-Risk (VaR) Drawdown: **{p_mc_results['var_max_drawdown']:.2f}%**")
+
+                                        # Plot portfolio histogram
+                                        counts, bin_edges = np.histogram(p_mc_results['max_dds'], bins=20)
+                                        bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
+                                        port_hist_df = pd.DataFrame({
+                                            'Count': counts
+                                        }, index=bin_labels)
+                                        st.bar_chart(port_hist_df, use_container_width=True)
+
+                            if "Cumulative Return [%]" in results_df.columns:
+                                import plotly.express as px
+                                st.markdown("---")
+                                st.subheader("Return Distribution")
+                                fig = px.histogram(
+                                    results_df, 
+                                    x="Cumulative Return [%]", 
+                                    nbins=50, 
+                                    title="Distribution of Strategy Cumulative Returns across intervals", 
+                                    marginal="box", 
+                                    color_discrete_sequence=['#00CC96']
+                                )
+                                st.plotly_chart(fig, use_container_width=True)
+
+                            st.markdown("---")
+                            st.subheader("Ranked Performance Matrix")
+
+                            # Let user sort the dataframe easily
+                            sort_col = st.selectbox("Sort By Metric:", results_df.columns, index=results_df.columns.get_loc("Cumulative Return [%]") if "Cumulative Return [%]" in results_df.columns else 0)
+                            results_df = results_df.sort_values(by=sort_col, ascending=False)
+
+                            def highlight_positive(val):
+                                try:
+                                    color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                                    return f'background-color: {color}'
+                                except:
+                                    return ''
+
+                            if "Cumulative Return [%]" in results_df.columns:
+                                st.dataframe(results_df.style.map(highlight_positive, subset=["Cumulative Return [%]"]), use_container_width=True)
+                            else:
+                                st.dataframe(results_df, use_container_width=True)
+                        else:
+                            st.warning("All data slices were too small or failed to execute.")
+
+                    except Exception as e:
+                        st.error(f"Error during bulk testing: {e}")
 
 # --- TAB 4: Results & Analytics ---
-with tab4:
+if active_tab == "Results & Analytics":
     st.header("Results & Analytics Dashboard")
     st.write("Analyze and compare previous backtest runs and bulk tests saved in the `results/` directory.")
     
@@ -1604,429 +2133,8 @@ with tab4:
                 except Exception as e:
                     st.error(f"Error loading bulk results: {e}")
 
-# --- TAB 5: Bulk Testing ---
-with tab5:
-    st.header("Bulk Testing Engine")
-    st.write("Automatically slice your dataset into individual periods (e.g., Daily) and run your strategy on each slice independently to rank performance.")
-    
-    b_col1, b_col2 = st.columns(2)
-    with b_col1:
-        data_dir = "data"
-        data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] if os.path.exists(data_dir) else []
-        
-        st.info("**Note:** When selecting multiple datasets, ensure they all share the same Native Granularity (e.g., all 5-minute tickers, or all Daily).")
-        selected_bulk_data = st.multiselect("Select Datasets", data_files, key="bulk_data", help="Select one or more historical datasets to test against.")
-        
-        # --- Date Slicer UI (from Tab 3) ---
-        if selected_bulk_data:
-            try:
-                min_dates, max_dates = [], []
-                for ds in selected_bulk_data:
-                    df_preview = pd.read_csv(os.path.join(data_dir, ds))
-                    df_preview.columns = df_preview.columns.str.strip()
-                    dt_col = next((c for c in df_preview.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
-                    if dt_col:
-                        df_preview[dt_col] = pd.to_datetime(df_preview[dt_col], format='mixed')
-                        min_dates.append(df_preview[dt_col].min().date())
-                        max_dates.append(df_preview[dt_col].max().date())
-                        
-                if min_dates and max_dates:
-                    global_min = max(min_dates)
-                    global_max = min(max_dates)
-                    
-                    if global_min <= global_max:
-                        st.success(f"Combined Data Overlap Available: **{global_min}** to **{global_max}**")
-                    else:
-                        st.warning("**No overlapping dates found between the selected datasets.**")
-                        global_min, global_max = min(min_dates), max(max_dates)
-                    
-                    st.markdown("**Filter Data Range**")
-                    d_col1, d_col2 = st.columns(2)
-                    
-                    import datetime
-                    with d_col1:
-                        start_d = st.date_input("Start Date", value=global_min, key="b_sd")
-                        start_t = st.time_input("Start Time", value=datetime.time(0, 0), key="b_st")
-                    with d_col2:
-                        end_d = st.date_input("End Date", value=global_max, key="b_ed")
-                        end_t = st.time_input("End Time", value=datetime.time(23, 59), key="b_et")
-                        
-                    start_datetime_bulk = datetime.datetime.combine(start_d, start_t)
-                    end_datetime_bulk = datetime.datetime.combine(end_d, end_t)
-                    
-                else:
-                    start_datetime_bulk, end_datetime_bulk = None, None
-            except Exception as e:
-                start_datetime_bulk, end_datetime_bulk = None, None
-                st.warning(f"Could not load dates for preview: {e}")
-        else:
-            start_datetime_bulk, end_datetime_bulk = None, None
-            
-    with b_col2:
-        strategies_dir = "strategies"
-        strategy_files = [f for f in os.listdir(strategies_dir) if f.endswith('.py')] if os.path.exists(strategies_dir) else []
-        selected_bulk_strat = st.selectbox("Select Strategy", strategy_files, key="bulk_strat")
-        
-    split_freq = st.selectbox("Split Dataset By:", ["Whole Dataset (No Split)", "Daily", "Weekly", "Monthly", "Intraday (Time Windows)", "Resample Timeframes"], help="Choose 'Whole Dataset' to test across the entire filtered date range without breaking it down. Select 'Intraday' to test specific hours within each day. Select 'Resample Timeframes' to test across multiple candle intervals.")
-    
-    # Intraday dynamic UI
-    intraday_windows = []
-    if split_freq == "Intraday (Time Windows)":
-        st.markdown("**Define Intraday Windows**")
-        num_windows = st.number_input("Number of Time Windows per Day", min_value=1, max_value=5, value=2, step=1)
-        import datetime
-        for w in range(num_windows):
-            c1, c2 = st.columns(2)
-            with c1:
-                w_start = st.time_input(f"Window {w+1} Start", value=datetime.time(9 + w, 0), key=f"w_s_{w}")
-            with c2:
-                w_end = st.time_input(f"Window {w+1} End", value=datetime.time(10 + w, 0), key=f"w_e_{w}")
-            intraday_windows.append((w_start, w_end))
-            
-    # Resample Timeframes dynamic UI
-    bulk_resample_tfs = []
-    if split_freq == "Resample Timeframes":
-        st.markdown("**Select Timeframes to Test**")
-        tf_options = {
-            "5 Min ('5T')": "5T",
-            "15 Min ('15T')": "15T",
-            "30 Min ('30T')": "30T",
-            "1 Hour ('1H')": "1H",
-            "4 Hours ('4H')": "4H",
-            "1 Day ('1D')": "1D"
-        }
-        selected_tf_labels = st.multiselect(
-            "Timeframes to Evaluate",
-            options=list(tf_options.keys()),
-            default=["5 Min ('5T')", "15 Min ('15T')", "1 Hour ('1H')", "1 Day ('1D')"],
-            help="Select one or more timeframes to resample the granular dataset into."
-        )
-        bulk_resample_tfs = [tf_options[lbl] for lbl in selected_tf_labels]
-            
-    st.markdown("**(Uses the Advanced Parameters currently set in Tab 3 `Run Backtest`)**")
-    
-    # Estimate test count
-    total_tests = 0
-    test_details = []
-    if selected_bulk_data:
-        for ds in selected_bulk_data:
-            try:
-                # Read only index/datetime column for speed
-                df_temp = pd.read_csv(os.path.join(data_dir, ds), nrows=5)
-                df_temp.columns = df_temp.columns.str.strip()
-                dt_col = next((c for c in df_temp.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
-                if dt_col:
-                    df_ds = pd.read_csv(os.path.join(data_dir, ds), usecols=[dt_col])
-                    df_ds.columns = df_ds.columns.str.strip()
-                    df_ds[dt_col] = pd.to_datetime(df_ds[dt_col], format='mixed')
-                    df_ds.set_index(dt_col, inplace=True)
-                    
-                    if start_datetime_bulk and end_datetime_bulk:
-                        start_dt_pd = pd.to_datetime(start_datetime_bulk)
-                        end_dt_pd = pd.to_datetime(end_datetime_bulk)
-                        df_ds = df_ds.loc[(df_ds.index >= start_dt_pd) & (df_ds.index <= end_dt_pd)]
-                    
-                    if split_freq == "Whole Dataset (No Split)":
-                        count = 1
-                    elif split_freq == "Daily":
-                        count = len(df_ds.index.normalize().unique())
-                    elif split_freq == "Weekly":
-                        count = len(df_ds.groupby([df_ds.index.isocalendar().year, df_ds.index.isocalendar().week]))
-                    elif split_freq == "Monthly":
-                        count = len(df_ds.groupby([df_ds.index.year, df_ds.index.month]))
-                    elif split_freq == "Intraday (Time Windows)":
-                        num_days = len(df_ds.index.normalize().unique())
-                        count = num_days * len(intraday_windows)
-                    elif split_freq == "Resample Timeframes":
-                        count = len(bulk_resample_tfs)
-                    else:
-                        count = 0
-                    
-                    total_tests += count
-                    test_details.append(f"- `{ds}`: **{count}** tests")
-                else:
-                    test_details.append(f"- `{ds}`: Datetime column not found")
-            except Exception as e:
-                test_details.append(f"- `{ds}`: Error estimating ({e})")
-                
-        # Display the scale estimation
-        st.markdown("### Bulk Backtest Scale Estimate")
-        col_scale1, col_scale2 = st.columns([4, 6])
-        with col_scale1:
-            st.metric("Total Projected Runs", f"{total_tests}")
-        with col_scale2:
-            st.markdown("**Runs Breakdown:**")
-            for detail in test_details:
-                st.markdown(detail)
-                
-        if total_tests > 100:
-            st.warning("**Warning:** Running over 100 backtests might take some time depending on hardware and dataset size.")
-        st.markdown("---")
-        
-    if st.button("Run Bulk Test", type="primary", use_container_width=True):
-        if not selected_bulk_data or not selected_bulk_strat:
-            st.error("Please select at least one dataset and a strategy.")
-        elif split_freq == "Resample Timeframes" and not bulk_resample_tfs:
-            st.error("Please select at least one timeframe to test.")
-        else:
-            with st.spinner(f"Running Bulk {split_freq} tests across {len(selected_bulk_data)} datasets..."):
-                try:
-                    all_stats = []
-                    all_trades_lists = []
-                    
-                    # 1. Load Strategy
-                    strat_class = load_strategy(os.path.join(strategies_dir, selected_bulk_strat))
-                    if not strat_class:
-                        st.error("No valid Strategy class found in the file.")
-                        st.stop()
-                        
-                    # 2. Iterate over all selected datasets
-                    for ds_idx, dataset_file in enumerate(selected_bulk_data):
-                        st.write(f"**Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: `{dataset_file}`**")
-                        
-                        df = pd.read_csv(os.path.join(data_dir, dataset_file))
-                        df.columns = df.columns.str.strip()
-                        col_map = {c.lower(): c.capitalize() for c in df.columns}
-                        df.rename(columns=col_map, inplace=True)
-                        if 'Volume' not in df.columns and 'volume' in col_map: 
-                            df.rename(columns={'volume': 'Volume'}, inplace=True)
-                        
-                        dt_col = None
-                        for col in df.columns:
-                            if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
-                                dt_col = col
-                                break
-                                
-                        if not dt_col:
-                            st.warning(f"Skipping `{dataset_file}`: No datetime column found.")
-                            continue
-                            
-                        df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
-                        df.set_index(dt_col, inplace=True)
-                        df.sort_index(inplace=True)
-                        
-                        # --- Granularity Validation ---
-                        # Calculate the median time difference between rows to guess the dataset's native timeframe
-                        if len(df) > 1:
-                            median_diff = df.index.to_series().diff().median()
-                            
-                            if split_freq == "Intraday (Time Windows)" and median_diff >= pd.Timedelta(days=1):
-                                st.error(f"Granularity Mismatch for `{dataset_file}`: You requested an **Intraday** split, but this dataset appears to only contain **Daily** (or higher) candles. Skipping.")
-                                continue
-                                
-                            if split_freq == "Daily" and median_diff >= pd.Timedelta(days=7):
-                                st.error(f"Granularity Mismatch for `{dataset_file}`: You requested a **Daily** split, but this dataset appears to only contain **Weekly/Monthly** candles. Skipping.")
-                                continue
-                        
-                        # Apply DateTime Slicing
-                        if start_datetime_bulk and end_datetime_bulk:
-                            try:
-                                start_dt_pd = pd.to_datetime(start_datetime_bulk)
-                                end_dt_pd = pd.to_datetime(end_datetime_bulk)
-                                mask = (df.index >= start_dt_pd) & (df.index <= end_dt_pd)
-                                df = df.loc[mask]
-                                if df.empty:
-                                    st.warning(f"DateTime slice resulted in an empty dataset for {dataset_file}.")
-                                    continue
-                            except Exception as e:
-                                st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
-                        
-                        
-                        # 3. Create Chunks
-                        chunks = []
-                        sym_name = dataset_file.replace('.csv', '')
-                        
-                        if split_freq == "Whole Dataset (No Split)":
-                            chunks = [(f"{sym_name} | Full Range", df)]
-                        elif split_freq == "Daily":
-                            chunks = [(f"{sym_name} | " + str(group.index[0].date()), group) for _, group in df.groupby(df.index.date)]
-                        elif split_freq == "Weekly":
-                            chunks = [(f"{sym_name} | {group.index[0].isocalendar().year}-W{group.index[0].isocalendar().week:02d}", group) for _, group in df.groupby([df.index.isocalendar().year, df.index.isocalendar().week])]
-                        elif split_freq == "Monthly":
-                            chunks = [(f"{sym_name} | {group.index[0].year}-{group.index[0].month:02d}", group) for _, group in df.groupby([df.index.year, df.index.month])]
-                        elif split_freq == "Intraday (Time Windows)":
-                            for date, daily_df in df.groupby(df.index.date):
-                                for start_t, end_t in intraday_windows:
-                                    try:
-                                        s_str = start_t.strftime("%H:%M:%S")
-                                        e_str = end_t.strftime("%H:%M:%S")
-                                        window_df = daily_df.between_time(s_str, e_str)
-                                        if not window_df.empty:
-                                            label = f"{sym_name} | {date} ({s_str[:5]}-{e_str[:5]})"
-                                            chunks.append((label, window_df))
-                                    except Exception as e:
-                                        st.warning(f"Failed to slice window {s_str}-{e_str} on {date}: {e}")
-                        elif split_freq == "Resample Timeframes":
-                            for tf in bulk_resample_tfs:
-                                try:
-                                    resample_dict = {}
-                                    if 'Open' in df.columns: resample_dict['Open'] = 'first'
-                                    if 'High' in df.columns: resample_dict['High'] = 'max'
-                                    if 'Low' in df.columns: resample_dict['Low'] = 'min'
-                                    if 'Close' in df.columns: resample_dict['Close'] = 'last'
-                                    if 'Volume' in df.columns: resample_dict['Volume'] = 'sum'
-                                    for col in df.columns:
-                                        if col not in resample_dict:
-                                            resample_dict[col] = 'first'
-                                            
-                                    resampled_df = df.resample(tf).agg(resample_dict).dropna()
-                                    if not resampled_df.empty:
-                                        chunks.append((f"{sym_name} | TF: {tf}", resampled_df))
-                                except Exception as e:
-                                    st.warning(f"Failed to resample `{dataset_file}` to `{tf}`: {e}")
-                        
-                        if not chunks:
-                            st.warning(f"No valid data chunks found to process in `{dataset_file}`.")
-                            continue
-                            
-                        st.info(f"Generated {len(chunks)} {split_freq} slices for `{dataset_file}`. Executing engine...")
-                        
-                        # 4. Execute Loop for this dataset
-                        progress_bar = st.progress(0)
-                        total_chunks = len(chunks)
-                        
-                        for i, (chunk_label, chunk_df) in enumerate(chunks):
-                            if len(chunk_df) < 5:  # Skip tiny chunks (e.g. half days with no data)
-                                continue
-                            
-                            bt = Backtest(
-                                chunk_df, 
-                                strat_class, 
-                                cash=init_cash,
-                                commission=commission, 
-                                spread=spread,
-                                margin=margin,
-                                trade_on_close=trade_on_close,
-                                hedging=hedging,
-                                exclusive_orders=exclusive_orders,
-                                finalize_trades=finalize_trades
-                            )
-                            
-                            stats = bt.run()
-                            
-                            chunk_trades = stats['_trades'] if '_trades' in stats else pd.DataFrame()
-                            if not chunk_trades.empty:
-                                t_copy = chunk_trades.copy()
-                                t_copy['Chunk'] = chunk_label
-                                all_trades_lists.append(t_copy)
-                            
-                            # Calculate full institutional metrics for this chunk
-                            chunk_metrics = calculate_strategy_metrics(stats, chunk_trades)
-                            chunk_metrics_series = pd.Series(chunk_metrics)
-                            chunk_metrics_series.name = chunk_label
-                            all_stats.append(chunk_metrics_series)
-                            
-                            # Update progress
-                            progress_bar.progress((i + 1) / total_chunks)
-                        
-                    # 5. Aggregate and Display
-                    if all_stats:
-                        results_df = pd.DataFrame(all_stats)
-                        
-                        combined_trades_df = pd.DataFrame()
-                        if all_trades_lists:
-                            combined_trades_df = pd.concat(all_trades_lists, ignore_index=True)
-                            
-                        st.success("Bulk Testing Complete!")
-                        
-                        # --- Auto Export Results (to results/ folder) ---
-                        results_dir = "results"
-                        if not os.path.exists(results_dir):
-                            os.makedirs(results_dir)
-                            
-                        import datetime
-                        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        
-                        if len(selected_bulk_data) > 1:
-                            target_tag = "Multiple_Datasets"
-                        else:
-                            target_tag = selected_bulk_data[0].replace('.csv', '')
-                            
-                        bulk_report_base = f"BULK_{split_freq}_{selected_bulk_strat.replace('.py', '')}_{target_tag}_{timestamp}"
-                        bulk_stats_path = os.path.join(results_dir, f"{bulk_report_base}_stats.csv")
-                        bulk_trades_path = os.path.join(results_dir, f"{bulk_report_base}_trades.csv")
-                        
-                        results_df.to_csv(bulk_stats_path)
-                        if not combined_trades_df.empty:
-                            combined_trades_df.to_csv(bulk_trades_path, index=False)
-                            
-                        st.info(f"Bulk files successfully exported to `results/`.")
-                        
-                        # Show Combined Portfolio Performance
-                        if not combined_trades_df.empty:
-                            st.markdown("---")
-                            st.subheader("Combined Portfolio Performance")
-                            st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
-                            
-                            port_metrics = calculate_strategy_metrics({}, combined_trades_df)
-                            
-                            p_mc_results = None
-                            if 'ReturnPct' in combined_trades_df.columns:
-                                returns = combined_trades_df['ReturnPct'].values / 100.0
-                                if len(returns) >= 5:
-                                    p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
-                            
-                            pm1, pm2, pm3, pm4 = st.columns(4)
-                            pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
-                            pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
-                            pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
-                            pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
-                            
-                            # Render Portfolio Monte Carlo if available
-                            if p_mc_results:
-                                with st.expander("Portfolio Monte Carlo Analysis", expanded=False):
-                                    st.write(f"Expected Portfolio Final Equity: **${p_mc_results['expected_final_equity']:,.2f}**")
-                                    st.write(f"Portfolio Median Drawdown: **{p_mc_results['median_max_drawdown']:.2f}%**")
-                                    st.write(f"Portfolio 95% Value-at-Risk (VaR) Drawdown: **{p_mc_results['var_max_drawdown']:.2f}%**")
-                                    
-                                    # Plot portfolio histogram
-                                    counts, bin_edges = np.histogram(p_mc_results['max_dds'], bins=20)
-                                    bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
-                                    port_hist_df = pd.DataFrame({
-                                        'Count': counts
-                                    }, index=bin_labels)
-                                    st.bar_chart(port_hist_df, use_container_width=True)
-                        
-                        if "Cumulative Return [%]" in results_df.columns:
-                            import plotly.express as px
-                            st.markdown("---")
-                            st.subheader("Return Distribution")
-                            fig = px.histogram(
-                                results_df, 
-                                x="Cumulative Return [%]", 
-                                nbins=50, 
-                                title="Distribution of Strategy Cumulative Returns across intervals", 
-                                marginal="box", 
-                                color_discrete_sequence=['#00CC96']
-                            )
-                            st.plotly_chart(fig, use_container_width=True)
-                        
-                        st.markdown("---")
-                        st.subheader("Ranked Performance Matrix")
-                        
-                        # Let user sort the dataframe easily
-                        sort_col = st.selectbox("Sort By Metric:", results_df.columns, index=results_df.columns.get_loc("Cumulative Return [%]") if "Cumulative Return [%]" in results_df.columns else 0)
-                        results_df = results_df.sort_values(by=sort_col, ascending=False)
-                        
-                        def highlight_positive(val):
-                            try:
-                                color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
-                                return f'background-color: {color}'
-                            except:
-                                return ''
-                                
-                        if "Cumulative Return [%]" in results_df.columns:
-                            st.dataframe(results_df.style.map(highlight_positive, subset=["Cumulative Return [%]"]), use_container_width=True)
-                        else:
-                            st.dataframe(results_df, use_container_width=True)
-                    else:
-                        st.warning("All data slices were too small or failed to execute.")
-                        
-                except Exception as e:
-                    st.error(f"Error during bulk testing: {e}")
-
 # --- TAB 6: Optimize Parameters ---
-with tab6:
+if active_tab == "Optimize Parameters":
     st.header("Parameter Optimization Engine")
     st.write("Automatically brute-force massive combinations of parameter ranges to find the optimal strategy variables.")
 
@@ -2287,7 +2395,7 @@ with tab6:
 
 
 # --- TAB 7: Paper Trading ---
-with tab7:
+if active_tab == "Paper Trading":
     st.header("Paper Trading Engine")
     st.write("Run your strategy on live-updating data natively in the background. You can navigate away from this tab while engines run.")
     
