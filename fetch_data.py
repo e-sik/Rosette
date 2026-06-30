@@ -325,6 +325,43 @@ def fetch_data_hub(source, symbol, exchange, interval_tv_enum, interval_yf_str, 
         return fetch_moneycontrol(symbol, interval_yf_str, start_date, end_date)
     return None, "Invalid data source selected."
 
+def update_benchmark_data(force=False):
+    """Automatically updates the benchmark_nifty50.csv file if it doesn't exist or is older than 24 hours."""
+    benchmark_path = os.path.join(DATA_DIR, "benchmark_nifty50.csv")
+    
+    # Check if we need to update
+    should_update = force or not os.path.exists(benchmark_path)
+    if not should_update:
+        try:
+            mtime = os.path.getmtime(benchmark_path)
+            from datetime import datetime
+            if (datetime.now() - datetime.fromtimestamp(mtime)).total_seconds() > 86400: # 24 hours
+                should_update = True
+        except Exception:
+            should_update = True
+            
+    if should_update:
+        logger.info("Benchmark data (benchmark_nifty50.csv) is missing or outdated. Updating from Moneycontrol...")
+        from datetime import date
+        today_str = str(date.today())
+        # Fetch from 2010-01-01 to today
+        filepath, err = fetch_moneycontrol("NIFTY 50", "1d", "2010-01-01", today_str)
+        if filepath and os.path.exists(filepath):
+            try:
+                import shutil
+                shutil.copy2(filepath, benchmark_path)
+                logger.info(f"Successfully updated benchmark file: {benchmark_path}")
+                return True, None
+            except Exception as copy_err:
+                err_msg = f"Failed to copy benchmark file: {copy_err}"
+                logger.error(err_msg)
+                return False, err_msg
+        else:
+            err_msg = f"Failed to fetch benchmark from Moneycontrol: {err}"
+            logger.error(err_msg)
+            return False, err_msg
+    return True, None
+
 if __name__ == "__main__":
     fetch_and_save_data('SBIN', 'NSE', Interval.in_daily, 2000)
     fetch_and_save_data('GOOG', 'NASDAQ', Interval.in_daily, 2000)

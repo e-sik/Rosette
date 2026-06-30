@@ -1392,6 +1392,13 @@ if active_tab == "Run Backtest":
 
                         # 7. Alpha Comparison
                         st.subheader("Benchmark Alpha Comparison")
+                        
+                        try:
+                            from fetch_data import update_benchmark_data
+                            update_benchmark_data()
+                        except Exception as update_err:
+                            st.warning(f"Failed to auto-update benchmark data: {update_err}")
+
                         benchmark_path = "data/benchmark_nifty50.csv"
 
                         if os.path.exists(benchmark_path) and '_equity_curve' in stats:
