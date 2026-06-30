@@ -302,11 +302,11 @@ def fetch_moneycontrol(symbol, interval_str, start_date=None, end_date=None):
     # Set column names and index name
     df_new.columns = ['Open', 'High', 'Low', 'Close', 'Volume']
     if resolution in ["1D", "1W", "1M"]:
-        df_new.index.name = "Date"
         try:
             df_new.index = df_new.index.date
         except Exception:
             pass
+        df_new.index.name = "Date"
     else:
         df_new.index.name = "Datetime"
 

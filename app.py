@@ -1253,7 +1253,7 @@ if active_tab == "Run Backtest":
                         # Locate Date/Time column
                         datetime_col = None
                         for col in df.columns:
-                            if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
+                            if col.lower() in ['date', 'time', 'datetime', 'timestamp', 'unnamed: 0']:
                                 datetime_col = col
                                 break
 
@@ -1634,7 +1634,7 @@ if active_tab == "Run Backtest":
 
                             dt_col = None
                             for col in df.columns:
-                                if col.lower() in ['date', 'time', 'datetime', 'timestamp']:
+                                if col.lower() in ['date', 'time', 'datetime', 'timestamp', 'unnamed: 0']:
                                     dt_col = col
                                     break
 
@@ -2266,7 +2266,7 @@ if active_tab == "Optimize Parameters":
                                 if 'Volume' not in df.columns and 'volume' in col_map: 
                                     df.rename(columns={'volume': 'Volume'}, inplace=True)
                                 
-                                dt_col = next((c for c in df.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
+                                dt_col = next((c for c in df.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp', 'unnamed: 0']), None)
                                 df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
                                 df.set_index(dt_col, inplace=True)
                                 if df.index.tz is not None:
