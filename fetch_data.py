@@ -325,18 +325,29 @@ def fetch_data_hub(source, symbol, exchange, interval_tv_enum, interval_yf_str, 
         return fetch_moneycontrol(symbol, interval_yf_str, start_date, end_date)
     return None, "Invalid data source selected."
 
-def update_benchmark_data(force=False):
-    """Automatically updates the benchmark_nifty50.csv file if it doesn't exist or is older than 24 hours."""
+def update_benchmark_data(latest_test_date=None, force=False):
+    """Automatically updates the benchmark_nifty50.csv file if it doesn't exist,
+    is older than 24 hours, or if the latest test data date exceeds the benchmark's latest date."""
     benchmark_path = os.path.join(DATA_DIR, "benchmark_nifty50.csv")
     
     # Check if we need to update
     should_update = force or not os.path.exists(benchmark_path)
     if not should_update:
         try:
-            mtime = os.path.getmtime(benchmark_path)
-            from datetime import datetime
-            if (datetime.now() - datetime.fromtimestamp(mtime)).total_seconds() > 86400: # 24 hours
-                should_update = True
+            # Check if latest test date is newer than the benchmark data max date
+            if latest_test_date is not None:
+                bm_df = pd.read_csv(benchmark_path, index_col=0, parse_dates=True)
+                bm_max = pd.to_datetime(bm_df.index.max()).tz_localize(None)
+                test_max = pd.to_datetime(latest_test_date).tz_localize(None)
+                if test_max > bm_max:
+                    should_update = True
+                    logger.info(f"Benchmark update required: Test data goes up to {test_max.date()}, but benchmark only goes up to {bm_max.date()}.")
+            
+            if not should_update:
+                mtime = os.path.getmtime(benchmark_path)
+                from datetime import datetime
+                if (datetime.now() - datetime.fromtimestamp(mtime)).total_seconds() > 86400: # 24 hours
+                    should_update = True
         except Exception:
             should_update = True
             

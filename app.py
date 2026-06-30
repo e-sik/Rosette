@@ -1395,7 +1395,11 @@ if active_tab == "Run Backtest":
                         
                         try:
                             from fetch_data import update_benchmark_data
-                            update_benchmark_data()
+                            # Pass the strategy equity curve's max date
+                            latest_date = None
+                            if '_equity_curve' in stats and not stats['_equity_curve'].empty:
+                                latest_date = stats['_equity_curve'].index.max()
+                            update_benchmark_data(latest_test_date=latest_date)
                         except Exception as update_err:
                             st.warning(f"Failed to auto-update benchmark data: {update_err}")
 
