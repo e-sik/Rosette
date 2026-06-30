@@ -1189,26 +1189,27 @@ if active_tab == "Run Backtest":
         st.subheader("4. Execution Script")
         st.write("You can review and manually override the execution script before running. Note: `df`, `strat_class`, and parameter variables (like `init_cash`, `commission`) are available in the scope.")
 
-        default_exec_code = """
-    # Initialize Backtest
-    bt = Backtest(
-        df, 
-        strat_class, 
-        cash=init_cash,
-        commission=commission, 
-        spread=spread,
-        margin=margin,
-        trade_on_close=trade_on_close,
-        hedging=hedging,
-        exclusive_orders=exclusive_orders,
-        finalize_trades=finalize_trades
-    )
+        import textwrap
+        default_exec_code = textwrap.dedent("""\
+            # Initialize Backtest
+            bt = Backtest(
+                df, 
+                strat_class, 
+                cash=init_cash,
+                commission=commission, 
+                spread=spread,
+                margin=margin,
+                trade_on_close=trade_on_close,
+                hedging=hedging,
+                exclusive_orders=exclusive_orders,
+                finalize_trades=finalize_trades
+            )
 
-    # Run standard backtest
-    stats = bt.run()
+            # Run standard backtest
+            stats = bt.run()
 
-    # Alternatively, you can use bt.optimize() here instead if you want to optimize parameters.
-    """
+            # Alternatively, you can use bt.optimize() here instead if you want to optimize parameters.
+            """)
         if 'exec_code_state' not in st.session_state:
             st.session_state['exec_code_state'] = default_exec_code.strip()
 
@@ -1260,6 +1261,8 @@ if active_tab == "Run Backtest":
                             # Auto-parse arbitrary datetime formats (e.g. 8/19/2004)
                             df[datetime_col] = pd.to_datetime(df[datetime_col], format='mixed')
                             df.set_index(datetime_col, inplace=True)
+                            if df.index.tz is not None:
+                                df.index = df.index.tz_localize(None)
                             df.sort_index(inplace=True)
 
                             # Apply DateTime Slicing
@@ -1329,7 +1332,8 @@ if active_tab == "Run Backtest":
                         }
 
                         # Execute the user's override script
-                        exec(exec_code, {}, local_context)
+                        import textwrap
+                        exec(textwrap.dedent(exec_code), {}, local_context)
 
                         # Retrieve the results from the executed context
                         if 'stats' not in local_context:
@@ -1640,6 +1644,8 @@ if active_tab == "Run Backtest":
 
                             df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
                             df.set_index(dt_col, inplace=True)
+                            if df.index.tz is not None:
+                                df.index = df.index.tz_localize(None)
                             df.sort_index(inplace=True)
 
                             # --- Granularity Validation ---
@@ -2263,6 +2269,8 @@ if active_tab == "Optimize Parameters":
                                 dt_col = next((c for c in df.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
                                 df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
                                 df.set_index(dt_col, inplace=True)
+                                if df.index.tz is not None:
+                                    df.index = df.index.tz_localize(None)
                                 df.sort_index(inplace=True)
                                 
                                 # Apply DateTime Slicing
