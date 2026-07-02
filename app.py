@@ -2046,83 +2046,104 @@ if active_tab == "Run Backtest":
                                 st.write("Consolidated performance metrics for each unique stock/dataset across all tested sub-intervals.")
                                 
                                 if not stock_summary_df.empty:
-                                    stock_summary_df = stock_summary_df.sort_values(by="Cumulative Return [%]", ascending=False)
-                                    
-                                    # Highlight returns
-                                    def highlight_pos_neg(val):
-                                        try:
-                                            color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
-                                            return f'background-color: {color}'
-                                        except:
-                                            return ''
-                                            
-                                    st.dataframe(
-                                        stock_summary_df.style.map(highlight_pos_neg, subset=["Cumulative Return [%]", "Total PnL ($)"]), 
-                                        use_container_width=True
-                                    )
-                                    
-                                    # Plotly Bar Chart comparing returns
-                                    import plotly.express as px
-                                    fig_stock = px.bar(
-                                        stock_summary_df,
-                                        x="Stock",
-                                        y="Cumulative Return [%]",
-                                        color="Cumulative Return [%]",
-                                        color_continuous_scale=px.colors.diverging.RdYlGn,
-                                        title="Asset Return Comparison under current Strategy",
-                                        text_auto='.2f'
-                                    )
-                                    fig_stock.update_layout(
-                                        plot_bgcolor='#0e1117',
-                                        paper_bgcolor='#0e1117',
-                                        font_color='white'
-                                    )
-                                    st.plotly_chart(fig_stock, use_container_width=True)
-                                    
-                                    # 5. Combined Equity Line Chart Comparison
-                                    equity_dfs = []
-                                    for name, group_df in stock_groups:
-                                        exit_col = next((c for c in group_df.columns if c.lower() in ['exittime', 'exit_time']), None)
-                                        ret_col = next((c for c in group_df.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
-                                        if not group_df.empty and exit_col and ret_col:
-                                            trades_sorted = group_df.sort_values(by=exit_col)
-                                            cum_rets = (1 + trades_sorted[ret_col] / 100.0).cumprod() - 1
-                                            cum_rets_pct = cum_rets * 100.0
-                                            
-                                            stock_eq = pd.Series(cum_rets_pct.values, index=pd.to_datetime(trades_sorted[exit_col]), name=name)
-                                            stock_eq = stock_eq[~stock_eq.index.duplicated(keep='last')]
-                                            equity_dfs.append(stock_eq)
-                                            
-                                    if equity_dfs:
-                                        portfolio_eq_df = pd.concat(equity_dfs, axis=1)
-                                        portfolio_eq_df.sort_index(inplace=True)
-                                        portfolio_eq_df.ffill(inplace=True)
-                                        portfolio_eq_df.fillna(0.0, inplace=True)
+                                    # Filter Controls
+                                    st.markdown("##### Filter & Analyze Assets")
+                                    f_col1, f_col2, f_col3 = st.columns(3)
+                                    with f_col1:
+                                        min_return = st.number_input("Min Cumulative Return (%)", value=-100.0, step=5.0, key="bulk_min_ret")
+                                    with f_col2:
+                                        max_drawdown = st.number_input("Max Allowable Drawdown (%)", value=100.0, step=5.0, key="bulk_max_dd")
+                                    with f_col3:
+                                        min_trades = st.number_input("Min Trades", value=0, step=5, key="bulk_min_trades")
                                         
-                                        if len(portfolio_eq_df) > 1000:
-                                            indices = np.linspace(0, len(portfolio_eq_df) - 1, 1000, dtype=int)
-                                            portfolio_eq_df_plot = portfolio_eq_df.iloc[indices]
-                                        else:
-                                            portfolio_eq_df_plot = portfolio_eq_df
-                                            
-                                        st.markdown("---")
-                                        st.subheader("Asset Cumulative Equity Curve Comparison")
-                                        st.write("Chronological comparison of cumulative percentage returns for each asset under the current strategy.")
+                                    filtered_df = stock_summary_df[
+                                        (stock_summary_df['Cumulative Return [%]'] >= min_return) & 
+                                        (stock_summary_df['Max Drawdown [%]'] <= max_drawdown) & 
+                                        (stock_summary_df['Total Trades'] >= min_trades)
+                                    ]
+                                    
+                                    if not filtered_df.empty:
+                                        filtered_df = filtered_df.sort_values(by="Cumulative Return [%]", ascending=False)
                                         
-                                        fig_eq = px.line(
-                                            portfolio_eq_df_plot,
-                                            x=portfolio_eq_df_plot.index,
-                                            y=portfolio_eq_df_plot.columns,
-                                            title="Asset Return Trajectory over Time",
-                                            labels={"value": "Cumulative Return (%)", "index": "Time"}
+                                        # Highlight returns
+                                        def highlight_pos_neg(val):
+                                            try:
+                                                color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                                                return f'background-color: {color}'
+                                            except:
+                                                return ''
+                                                
+                                        st.dataframe(
+                                            filtered_df.style.map(highlight_pos_neg, subset=["Cumulative Return [%]", "Total PnL ($)"]), 
+                                            use_container_width=True
                                         )
-                                        fig_eq.update_layout(
+                                        
+                                        # Plotly Bar Chart comparing returns
+                                        import plotly.express as px
+                                        fig_stock = px.bar(
+                                            filtered_df,
+                                            x="Stock",
+                                            y="Cumulative Return [%]",
+                                            color="Cumulative Return [%]",
+                                            color_continuous_scale=px.colors.diverging.RdYlGn,
+                                            title="Asset Return Comparison under current Strategy",
+                                            text_auto='.2f'
+                                        )
+                                        fig_stock.update_layout(
                                             plot_bgcolor='#0e1117',
                                             paper_bgcolor='#0e1117',
-                                            font_color='white',
-                                            legend_title="Asset"
+                                            font_color='white'
                                         )
-                                        st.plotly_chart(fig_eq, use_container_width=True)
+                                        st.plotly_chart(fig_stock, use_container_width=True)
+                                        
+                                        # 5. Combined Equity Line Chart Comparison
+                                        equity_dfs = []
+                                        filtered_stocks = set(filtered_df['Stock'])
+                                        for name, group_df in combined_trades_df.groupby('Stock'):
+                                            if name in filtered_stocks:
+                                                exit_col = next((c for c in group_df.columns if c.lower() in ['exittime', 'exit_time']), None)
+                                                ret_col = next((c for c in group_df.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
+                                                if not group_df.empty and exit_col and ret_col:
+                                                    trades_sorted = group_df.sort_values(by=exit_col)
+                                                    cum_rets = (1 + trades_sorted[ret_col] / 100.0).cumprod() - 1
+                                                    cum_rets_pct = cum_rets * 100.0
+                                                    
+                                                    stock_eq = pd.Series(cum_rets_pct.values, index=pd.to_datetime(trades_sorted[exit_col]), name=name)
+                                                    stock_eq = stock_eq[~stock_eq.index.duplicated(keep='last')]
+                                                    equity_dfs.append(stock_eq)
+                                                    
+                                        if equity_dfs:
+                                            portfolio_eq_df = pd.concat(equity_dfs, axis=1)
+                                            portfolio_eq_df.sort_index(inplace=True)
+                                            portfolio_eq_df.ffill(inplace=True)
+                                            portfolio_eq_df.fillna(0.0, inplace=True)
+                                            
+                                            if len(portfolio_eq_df) > 1000:
+                                                indices = np.linspace(0, len(portfolio_eq_df) - 1, 1000, dtype=int)
+                                                portfolio_eq_df_plot = portfolio_eq_df.iloc[indices]
+                                            else:
+                                                portfolio_eq_df_plot = portfolio_eq_df
+                                                
+                                            st.markdown("---")
+                                            st.subheader("Asset Cumulative Equity Curve Comparison")
+                                            st.write("Chronological comparison of cumulative percentage returns for each asset under the current strategy.")
+                                            
+                                            fig_eq = px.line(
+                                                portfolio_eq_df_plot,
+                                                x=portfolio_eq_df_plot.index,
+                                                y=portfolio_eq_df_plot.columns,
+                                                title="Asset Return Trajectory over Time",
+                                                labels={"value": "Cumulative Return (%)", "index": "Time"}
+                                            )
+                                            fig_eq.update_layout(
+                                                plot_bgcolor='#0e1117',
+                                                paper_bgcolor='#0e1117',
+                                                font_color='white',
+                                                legend_title="Asset"
+                                            )
+                                            st.plotly_chart(fig_eq, use_container_width=True)
+                                    else:
+                                        st.warning("No assets matched your filter criteria.")
 
                             if "Cumulative Return [%]" in results_df.columns:
                                 import plotly.express as px
@@ -2375,31 +2396,51 @@ if active_tab == "Results & Analytics":
                     combined_trades_df = pd.read_csv(trades_file_path) if os.path.exists(trades_file_path) else pd.DataFrame()
                     
                     if not combined_trades_df.empty:
-                        st.markdown("### Combined Portfolio Performance")
-                        st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
+                        # 1. Extract stock name from the 'Chunk' column
+                        combined_trades_df['Stock'] = combined_trades_df['Chunk'].apply(lambda x: str(x).split(' | ')[0])
                         
-                        # We calculate metrics for the combined trade ledger
+                        init_cash_viewer = 10000 # default starting capital fallback
+                        
+                        # 2. Consolidate metrics per Stock
+                        stock_groups = combined_trades_df.groupby('Stock')
+                        stock_summaries = []
+                        for name, group_df in stock_groups:
+                            summary = calculate_stock_consolidation(name, group_df, init_cash_viewer)
+                            stock_summaries.append(summary)
+                            
+                        stock_summary_df = pd.DataFrame(stock_summaries)
+                        
+                        # 3. Calculate true portfolio return
+                        n_stocks = len(stock_summary_df) if not stock_summary_df.empty else 1
+                        portfolio_start_capital = n_stocks * init_cash_viewer
+                        portfolio_pnl = stock_summary_df['Total PnL ($)'].sum() if not stock_summary_df.empty else 0.0
+                        portfolio_return_pct = (portfolio_pnl / portfolio_start_capital * 100) if portfolio_start_capital > 0 else 0.0
+                        
+                        st.markdown("### Combined Portfolio Performance")
+                        st.write("Aggregated metrics treating all tested assets as an equal-weighted multi-asset portfolio.")
+                        
                         port_metrics = calculate_strategy_metrics({}, combined_trades_df)
                         
-                        # Run Portfolio Monte Carlo
                         p_mc_results = None
                         if 'ReturnPct' in combined_trades_df.columns:
                             returns = combined_trades_df['ReturnPct'].values / 100.0
                             if len(returns) >= 5:
-                                p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=10000) # default cap
-                        
-                        pm1, pm2, pm3, pm4 = st.columns(4)
-                        pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
-                        pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
-                        pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
-                        pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
-                        
+                                p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash_viewer)
+
+                        pm1, pm2, pm3, pm4, pm5 = st.columns(5)
+                        pm1.metric("Portfolio Return", f"{portfolio_return_pct:.2f}%")
+                        pm2.metric("Portfolio PnL", f"${portfolio_pnl:,.2f}")
+                        pm3.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
+                        pm4.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
+                        pm5.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
+
+                        # Render Portfolio Monte Carlo if available
                         if p_mc_results:
                             with st.expander("Portfolio Monte Carlo Analysis", expanded=False):
                                 st.write(f"Expected Portfolio Final Equity: **${p_mc_results['expected_final_equity']:,.2f}**")
                                 st.write(f"Portfolio Median Drawdown: **{p_mc_results['median_max_drawdown']:.2f}%**")
                                 st.write(f"Portfolio 95% Value-at-Risk (VaR) Drawdown: **{p_mc_results['var_max_drawdown']:.2f}%**")
-                                
+
                                 # Plot portfolio histogram
                                 counts, bin_edges = np.histogram(p_mc_results['max_dds'], bins=20)
                                 bin_labels = [f"{x:.1f}%" for x in bin_edges[:-1]]
@@ -2407,6 +2448,111 @@ if active_tab == "Results & Analytics":
                                     'Count': counts
                                 }, index=bin_labels)
                                 st.bar_chart(port_hist_df, use_container_width=True)
+
+                        # 4. Display Stock Consolidation
+                        st.markdown("---")
+                        st.subheader("Individual Asset Performance Consolidation")
+                        st.write("Consolidated performance metrics for each unique stock/dataset across all tested sub-intervals.")
+                        
+                        if not stock_summary_df.empty:
+                            # Filter Controls
+                            st.markdown("##### Filter & Analyze Assets")
+                            f_col1, f_col2, f_col3 = st.columns(3)
+                            with f_col1:
+                                min_return = st.number_input("Min Cumulative Return (%)", value=-100.0, step=5.0, key="viewer_min_ret")
+                            with f_col2:
+                                max_drawdown = st.number_input("Max Allowable Drawdown (%)", value=100.0, step=5.0, key="viewer_max_dd")
+                            with f_col3:
+                                min_trades = st.number_input("Min Trades", value=0, step=5, key="viewer_min_trades")
+                                
+                            filtered_df = stock_summary_df[
+                                (stock_summary_df['Cumulative Return [%]'] >= min_return) & 
+                                (stock_summary_df['Max Drawdown [%]'] <= max_drawdown) & 
+                                (stock_summary_df['Total Trades'] >= min_trades)
+                            ]
+                            
+                            if not filtered_df.empty:
+                                filtered_df = filtered_df.sort_values(by="Cumulative Return [%]", ascending=False)
+                                
+                                # Highlight returns
+                                def highlight_pos_neg(val):
+                                    try:
+                                        color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                                        return f'background-color: {color}'
+                                    except:
+                                        return ''
+                                        
+                                st.dataframe(
+                                    filtered_df.style.map(highlight_pos_neg, subset=["Cumulative Return [%]", "Total PnL ($)"]), 
+                                    use_container_width=True
+                                )
+                                
+                                # Plotly Bar Chart comparing returns
+                                import plotly.express as px
+                                fig_stock = px.bar(
+                                    filtered_df,
+                                    x="Stock",
+                                    y="Cumulative Return [%]",
+                                    color="Cumulative Return [%]",
+                                    color_continuous_scale=px.colors.diverging.RdYlGn,
+                                    title="Asset Return Comparison under current Strategy",
+                                    text_auto='.2f'
+                                )
+                                fig_stock.update_layout(
+                                    plot_bgcolor='#0e1117',
+                                    paper_bgcolor='#0e1117',
+                                    font_color='white'
+                                )
+                                st.plotly_chart(fig_stock, use_container_width=True)
+                                
+                                # 5. Combined Equity Line Chart Comparison
+                                equity_dfs = []
+                                filtered_stocks = set(filtered_df['Stock'])
+                                for name, group_df in combined_trades_df.groupby('Stock'):
+                                    if name in filtered_stocks:
+                                        exit_col = next((c for c in group_df.columns if c.lower() in ['exittime', 'exit_time']), None)
+                                        ret_col = next((c for c in group_df.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
+                                        if not group_df.empty and exit_col and ret_col:
+                                            trades_sorted = group_df.sort_values(by=exit_col)
+                                            cum_rets = (1 + trades_sorted[ret_col] / 100.0).cumprod() - 1
+                                            cum_rets_pct = cum_rets * 100.0
+                                            
+                                            stock_eq = pd.Series(cum_rets_pct.values, index=pd.to_datetime(trades_sorted[exit_col]), name=name)
+                                            stock_eq = stock_eq[~stock_eq.index.duplicated(keep='last')]
+                                            equity_dfs.append(stock_eq)
+                                            
+                                if equity_dfs:
+                                    portfolio_eq_df = pd.concat(equity_dfs, axis=1)
+                                    portfolio_eq_df.sort_index(inplace=True)
+                                    portfolio_eq_df.ffill(inplace=True)
+                                    portfolio_eq_df.fillna(0.0, inplace=True)
+                                    
+                                    if len(portfolio_eq_df) > 1000:
+                                        indices = np.linspace(0, len(portfolio_eq_df) - 1, 1000, dtype=int)
+                                        portfolio_eq_df_plot = portfolio_eq_df.iloc[indices]
+                                    else:
+                                        portfolio_eq_df_plot = portfolio_eq_df
+                                        
+                                    st.markdown("---")
+                                    st.subheader("Asset Cumulative Equity Curve Comparison")
+                                    st.write("Chronological comparison of cumulative percentage returns for each asset under the current strategy.")
+                                    
+                                    fig_eq = px.line(
+                                        portfolio_eq_df_plot,
+                                        x=portfolio_eq_df_plot.index,
+                                        y=portfolio_eq_df_plot.columns,
+                                        title="Asset Return Trajectory over Time",
+                                        labels={"value": "Cumulative Return (%)", "index": "Time"}
+                                    )
+                                    fig_eq.update_layout(
+                                        plot_bgcolor='#0e1117',
+                                        paper_bgcolor='#0e1117',
+                                        font_color='white',
+                                        legend_title="Asset"
+                                    )
+                                    st.plotly_chart(fig_eq, use_container_width=True)
+                            else:
+                                st.warning("No assets matched your filter criteria.")
                         
                         if "Cumulative Return [%]" in results_df.columns:
                             import plotly.express as px
