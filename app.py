@@ -8,6 +8,63 @@ import importlib.util
 import inspect
 import logging
 from backtesting import Strategy, Backtest
+import backtesting.backtesting as bt_module
+
+class StreamlitTQDM:
+    def __init__(self, iterable=None, total=None, desc=None, leave=False, mininterval=2, **kwargs):
+        self.iterable = iterable
+        if total is not None:
+            self.total = total
+        elif iterable is not None:
+            try:
+                self.total = len(iterable)
+            except:
+                self.total = 0
+        else:
+            self.total = 0
+            
+        self.desc = desc or "Executing"
+        self.progress_bar = st.progress(0.0)
+        self.status_text = st.empty()
+        self.n = 0
+        self.iterator = iter(self.iterable) if self.iterable is not None else None
+        
+    def __iter__(self):
+        return self
+        
+    def __next__(self):
+        self.update(1)
+        if self.iterator is not None:
+            try:
+                return next(self.iterator)
+            except StopIteration:
+                self.close()
+                raise
+        return None
+        
+    def __enter__(self):
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+        
+    def update(self, n=1):
+        self.n += n
+        if self.total > 0:
+            frac = min(self.n / self.total, 1.0)
+            self.progress_bar.progress(frac)
+            self.status_text.write(f"**{self.desc}**: {self.n}/{self.total} completed...")
+            
+    def close(self):
+        try:
+            self.progress_bar.empty()
+            self.status_text.empty()
+        except:
+            pass
+
+# Globally patch backtesting's internal tqdm to use Streamlit's progress bar
+bt_module._tqdm = StreamlitTQDM
+
 import time
 import ast
 import traceback
