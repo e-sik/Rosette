@@ -397,6 +397,9 @@ def calculate_strategy_metrics(stats, trades_df):
     metrics['Cumulative Return [%]'] = float(stats.get('Return [%]', 0.0))
     metrics['Annualized Return [%]'] = float(stats.get('Return (Ann.) [%]', 0.0))
     metrics['Final Equity [$]'] = float(stats.get('Equity Final [$]', 0.0))
+    metrics['Start Date'] = str(stats.get('Start', 'N/A'))
+    metrics['End Date'] = str(stats.get('End', 'N/A'))
+    metrics['Equity Start [$]'] = float(stats.get('Equity Start [$]', 10000.0))
     
     # 2. Risk & Exposure
     metrics['Max Drawdown [%]'] = float(stats.get('Max. Drawdown [%]', 0.0))
@@ -443,8 +446,8 @@ def calculate_strategy_metrics(stats, trades_df):
             # Update win rate
             metrics['Win Rate [%]'] = (len(win_trades) / len(trades_df)) * 100.0
             
-            avg_win = float(win_trades[ret_col].mean()) if not win_trades.empty else 0.0
-            avg_loss = float(abs(loss_trades[ret_col].mean())) if not loss_trades.empty else 0.0
+            avg_win = float(win_trades[ret_col].mean()) * 100.0 if not win_trades.empty else 0.0
+            avg_loss = float(abs(loss_trades[ret_col].mean())) * 100.0 if not loss_trades.empty else 0.0
             
             gross_profit = float(win_trades[pnl_col].sum()) if (pnl_col and not win_trades.empty) else 0.0
             gross_loss = float(abs(loss_trades[pnl_col].sum())) if (pnl_col and not loss_trades.empty) else 0.0
@@ -700,6 +703,23 @@ def render_unified_dashboard(run_name, metrics, trades_df, plot_html_path, mc_re
     """
     st.markdown(f"## Performance & Risk: `{run_name}`")
     
+    # Render backtest configuration parameters summary
+    with st.expander("📋 Backtest Configuration Parameters", expanded=True):
+        p_col1, p_col2, p_col3 = st.columns(3)
+        # Try to parse strategy and data from run name
+        parts = run_name.split("_")
+        strat_lbl = parts[0] if len(parts) > 0 else "N/A"
+        data_lbl = parts[1] if len(parts) > 1 else "N/A"
+        
+        with p_col1:
+            st.write(f"**Strategy**: `{strat_lbl}`")
+            st.write(f"**Dataset**: `{data_lbl}`")
+        with p_col2:
+            st.write(f"**Start Date**: `{metrics.get('Start Date', 'N/A')}`")
+            st.write(f"**End Date**: `{metrics.get('End Date', 'N/A')}`")
+        with p_col3:
+            st.write(f"**Starting Capital**: `${metrics.get('Equity Start [$]', 10000.0):,.2f}`")
+            
     # 1. Header & Summary Metrics
     c1, c2, c3, c4, c5, c6 = st.columns(6)
     
@@ -1620,7 +1640,7 @@ if active_tab == "Run Backtest":
 
                         mc_results = None
                         if not trades_df.empty and 'ReturnPct' in trades_df.columns:
-                            returns = trades_df['ReturnPct'].values / 100.0
+                            returns = trades_df['ReturnPct'].values
                             if len(returns) >= 5:
                                 mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
 
@@ -2113,6 +2133,22 @@ if active_tab == "Run Backtest":
                                 portfolio_return_pct = (portfolio_pnl / portfolio_start_capital * 100) if portfolio_start_capital > 0 else 0.0
                                 
                                 st.markdown("---")
+                                with st.expander("📋 Bulk Backtest Configuration Parameters", expanded=True):
+                                    bp_col1, bp_col2, bp_col3 = st.columns(3)
+                                    with bp_col1:
+                                        st.write(f"**Strategy**: `{selected_bulk_strat.replace('.py', '')}`")
+                                        st.write(f"**Split Frequency**: `{split_freq}`")
+                                        st.write(f"**Starting Capital**: `${init_cash:,.2f} per asset`")
+                                    with bp_col2:
+                                        t_start = combined_trades_df['EntryTime'].min()
+                                        t_end = combined_trades_df['ExitTime'].max()
+                                        st.write(f"**Tested Range**: `{t_start} to {t_end}`")
+                                        st.write(f"**Datasets Tested ({len(selected_bulk_data)})**: `{', '.join([d.replace('.csv', '') for d in selected_bulk_data])[:150]}`")
+                                    with bp_col3:
+                                        st.write(f"**Commission**: `{commission:.4%}`")
+                                        st.write(f"**Spread/Slippage**: `{spread}`")
+                                        st.write(f"**Margin**: `{margin}x`")
+                                        
                                 st.subheader("Combined Portfolio Performance")
                                 st.write("Aggregated metrics treating all tested assets as an equal-weighted multi-asset portfolio.")
                                 
@@ -2120,7 +2156,7 @@ if active_tab == "Run Backtest":
                                 
                                 p_mc_results = None
                                 if 'ReturnPct' in combined_trades_df.columns:
-                                    returns = combined_trades_df['ReturnPct'].values / 100.0
+                                    returns = combined_trades_df['ReturnPct'].values
                                     if len(returns) >= 5:
                                         p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
 
@@ -2337,7 +2373,7 @@ if active_tab == "Results & Analytics":
                             
                             mc_results = None
                             if not trades_df.empty and 'ReturnPct' in trades_df.columns:
-                                returns = trades_df['ReturnPct'].values / 100.0
+                                returns = trades_df['ReturnPct'].values
                                 if len(returns) >= 5:
                                     start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
                                     mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
@@ -2362,7 +2398,7 @@ if active_tab == "Results & Analytics":
                                 
                                 mc_results = None
                                 if not trades_df.empty and 'ReturnPct' in trades_df.columns:
-                                    returns = trades_df['ReturnPct'].values / 100.0
+                                    returns = trades_df['ReturnPct'].values
                                     if len(returns) >= 5:
                                         start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
                                         mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
@@ -2412,7 +2448,7 @@ if active_tab == "Results & Analytics":
                                 stats_series = pd.read_csv(stats_path, index_col=0).iloc[:, 0] if os.path.exists(stats_path) else pd.Series()
                                 
                                 if not trades_df.empty and 'ReturnPct' in trades_df.columns:
-                                    returns = trades_df['ReturnPct'].values / 100.0
+                                    returns = trades_df['ReturnPct'].values
                                     if len(returns) >= 5:
                                         start_cap = float(stats_series.get('Equity Start [$]', 10000.0))
                                         mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=start_cap)
@@ -2522,6 +2558,27 @@ if active_tab == "Results & Analytics":
                         portfolio_pnl = stock_summary_df['Total PnL ($)'].sum() if not stock_summary_df.empty else 0.0
                         portfolio_return_pct = (portfolio_pnl / portfolio_start_capital * 100) if portfolio_start_capital > 0 else 0.0
                         
+                        # Parse filename: e.g. BULK_Daily_SMA Cross Intraday_Multiple_Datasets_20260702_230517
+                        filename_parts = selected_bulk_run.split("_")
+                        split_freq_val = filename_parts[1] if len(filename_parts) > 1 else "N/A"
+                        strategy_name_val = filename_parts[2] if len(filename_parts) > 2 else "N/A"
+                        dataset_tag_val = filename_parts[3] if len(filename_parts) > 3 else "N/A"
+                        
+                        with st.expander("📋 Bulk Backtest Configuration Parameters", expanded=True):
+                            bp_col1, bp_col2, bp_col3 = st.columns(3)
+                            with bp_col1:
+                                st.write(f"**Strategy**: `{strategy_name_val}`")
+                                st.write(f"**Split Frequency**: `{split_freq_val}`")
+                                st.write(f"**Starting Capital**: `${init_cash_viewer:,.2f} per asset`")
+                            with bp_col2:
+                                t_start = combined_trades_df['EntryTime'].min()
+                                t_end = combined_trades_df['ExitTime'].max()
+                                st.write(f"**Tested Range**: `{t_start} to {t_end}`")
+                                st.write(f"**Datasets/Symbols**: `{dataset_tag_val}`")
+                            with bp_col3:
+                                st.write(f"**Total Portfolio Capital**: `${portfolio_start_capital:,.2f}`")
+                                st.write(f"**Total Assets**: `{n_stocks}`")
+                                
                         st.markdown("### Combined Portfolio Performance")
                         st.write("Aggregated metrics treating all tested assets as an equal-weighted multi-asset portfolio.")
                         
@@ -2529,7 +2586,7 @@ if active_tab == "Results & Analytics":
                         
                         p_mc_results = None
                         if 'ReturnPct' in combined_trades_df.columns:
-                            returns = combined_trades_df['ReturnPct'].values / 100.0
+                            returns = combined_trades_df['ReturnPct'].values
                             if len(returns) >= 5:
                                 p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash_viewer)
 
