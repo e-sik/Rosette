@@ -59,6 +59,11 @@ def fetch_tradingview(symbol, exchange, interval_enum, start_date=None, end_date
         
     logger.info(f"Successfully processed {len(df)} rows within range.")
     
+    if interval_enum.name in ['in_daily', 'in_weekly', 'in_monthly']:
+        df.index.name = "Date"
+    else:
+        df.index.name = "Datetime"
+        
     filename = f"TV_{symbol}_{exchange}_{interval_enum.name}.csv"
     filepath = os.path.join(DATA_DIR, filename)
     df.to_csv(filepath)
@@ -94,6 +99,21 @@ def fetch_yfinance(symbol, interval_str, start_date=None, end_date=None):
     # Capitalize columns to match standard backtesting format
     df.columns = [c.capitalize() for c in df.columns]
     
+    # Convert index to timezone-naive IST
+    if df.index.tz is not None:
+        df.index = df.index.tz_convert('Asia/Kolkata').tz_localize(None)
+    else:
+        if interval_str not in ['1d', '5d', '1wk', '1mo', '3mo']:
+            try:
+                df.index = df.index.tz_localize('UTC').tz_convert('Asia/Kolkata').tz_localize(None)
+            except Exception:
+                pass
+                
+    if interval_str in ['1d', '5d', '1wk', '1mo', '3mo']:
+        df.index.name = "Date"
+    else:
+        df.index.name = "Datetime"
+        
     filename = f"YF_{symbol}_{interval_str}.csv"
     filepath = os.path.join(DATA_DIR, filename)
     df.to_csv(filepath)
@@ -261,8 +281,9 @@ def fetch_moneycontrol(symbol, interval_str, start_date=None, end_date=None):
             'Volume': res_json['v']
         })
         df_new.set_index('Datetime', inplace=True)
-        # Match standard yfinance timezone format (localized to UTC)
-        df_new.index = df_new.index.tz_localize('UTC')
+        # Convert index from UTC to Asia/Kolkata (IST) and make it timezone-naive if intraday
+        if resolution not in ["1D", "1W", "1M"]:
+            df_new.index = df_new.index.tz_localize('UTC').tz_convert('Asia/Kolkata').tz_localize(None)
 
     except Exception as e:
         err = f"Network or parsing exception: {e}"
@@ -278,6 +299,10 @@ def fetch_moneycontrol(symbol, interval_str, start_date=None, end_date=None):
             logger.info(f"Existing file found at {filepath}. Merging new data...")
             df_existing = pd.read_csv(filepath, index_col=0, parse_dates=True)
             
+            # Convert existing data index to naive IST if it was stored with timezone awareness
+            if df_existing.index.tz is not None:
+                df_existing.index = df_existing.index.tz_convert('Asia/Kolkata').tz_localize(None)
+            
             # Combine and deduplicate keeping the latest records
             df_combined = pd.concat([df_existing, df_new])
             df_combined = df_combined[~df_combined.index.duplicated(keep='last')]
@@ -287,10 +312,14 @@ def fetch_moneycontrol(symbol, interval_str, start_date=None, end_date=None):
         except Exception as e:
             logger.error(f"Failed to merge with existing CSV: {e}. Overwriting instead.")
 
-    # 6. Slice local dataframe to matching range
+    # 6. Slice local dataframe to matching range using timezone-naive slices
     try:
-        sd = pd.to_datetime(start_date).tz_localize('UTC') if start_date else None
-        ed = (pd.to_datetime(end_date) + pd.Timedelta(days=1)).tz_localize('UTC') if end_date else None
+        if resolution in ["1D", "1W", "1M"]:
+            sd = pd.to_datetime(start_date).date() if start_date else None
+            ed = pd.to_datetime(end_date).date() if end_date else None
+        else:
+            sd = pd.to_datetime(start_date) if start_date else None
+            ed = (pd.to_datetime(end_date) + pd.Timedelta(days=1)) if end_date else None
         
         if sd:
             df_new = df_new.loc[df_new.index >= sd]
