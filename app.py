@@ -484,6 +484,45 @@ def calculate_strategy_metrics(stats, trades_df):
     
     return metrics
 
+def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
+    """
+    Consolidates backtest metrics for an individual stock across all its trade logs.
+    """
+    if stock_trades.empty:
+        return {
+            'Stock': stock_name,
+            'Total Trades': 0,
+            'Win Rate [%]': 0.0,
+            'Profit Factor': 0.0,
+            'Total PnL ($)': 0.0,
+            'Cumulative Return [%]': 0.0
+        }
+    
+    ret_col = next((c for c in stock_trades.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
+    pnl_col = next((c for c in stock_trades.columns if c.lower() in ['pnl', 'p_n_l', 'profit_loss']), None)
+    
+    total_pnl = float(stock_trades[pnl_col].sum()) if pnl_col else 0.0
+    cum_ret = (total_pnl / init_cash) * 100.0 if init_cash > 0 else 0.0
+    
+    win_trades = stock_trades[stock_trades[ret_col] > 0] if (ret_col and not stock_trades.empty) else pd.DataFrame()
+    loss_trades = stock_trades[stock_trades[ret_col] < 0] if (ret_col and not stock_trades.empty) else pd.DataFrame()
+    
+    win_rate = (len(win_trades) / len(stock_trades)) * 100.0 if not stock_trades.empty else 0.0
+    
+    gross_profit = float(win_trades[pnl_col].sum()) if (pnl_col and not win_trades.empty) else 0.0
+    gross_loss = float(abs(loss_trades[pnl_col].sum())) if (pnl_col and not loss_trades.empty) else 0.0
+    
+    profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+    
+    return {
+        'Stock': stock_name,
+        'Total Trades': len(stock_trades),
+        'Win Rate [%]': win_rate,
+        'Profit Factor': profit_factor,
+        'Total PnL ($)': total_pnl,
+        'Cumulative Return [%]': cum_ret
+    }
+
 def run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=10000):
     """
     Runs a vectorized Monte Carlo simulation by shuffling returns.
@@ -1928,23 +1967,42 @@ if active_tab == "Run Backtest":
 
                             # Show Combined Portfolio Performance
                             if not combined_trades_df.empty:
+                                # 1. Extract stock name from the 'Chunk' column
+                                combined_trades_df['Stock'] = combined_trades_df['Chunk'].apply(lambda x: str(x).split(' | ')[0])
+                                
+                                # 2. Consolidate metrics per Stock
+                                stock_groups = combined_trades_df.groupby('Stock')
+                                stock_summaries = []
+                                for name, group_df in stock_groups:
+                                    summary = calculate_stock_consolidation(name, group_df, init_cash)
+                                    stock_summaries.append(summary)
+                                    
+                                stock_summary_df = pd.DataFrame(stock_summaries)
+                                
+                                # 3. Calculate true portfolio return
+                                n_stocks = len(stock_summary_df) if not stock_summary_df.empty else 1
+                                portfolio_start_capital = n_stocks * init_cash
+                                portfolio_pnl = stock_summary_df['Total PnL ($)'].sum() if not stock_summary_df.empty else 0.0
+                                portfolio_return_pct = (portfolio_pnl / portfolio_start_capital * 100) if portfolio_start_capital > 0 else 0.0
+                                
                                 st.markdown("---")
                                 st.subheader("Combined Portfolio Performance")
-                                st.write("Aggregated metrics treating all bulk intervals as a single unified portfolio.")
-
+                                st.write("Aggregated metrics treating all tested assets as an equal-weighted multi-asset portfolio.")
+                                
                                 port_metrics = calculate_strategy_metrics({}, combined_trades_df)
-
+                                
                                 p_mc_results = None
                                 if 'ReturnPct' in combined_trades_df.columns:
                                     returns = combined_trades_df['ReturnPct'].values / 100.0
                                     if len(returns) >= 5:
                                         p_mc_results = run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=init_cash)
 
-                                pm1, pm2, pm3, pm4 = st.columns(4)
-                                pm1.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
-                                pm2.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
-                                pm3.metric("Combined Expectancy", f"{port_metrics['Expectancy [%]']:.4f}%")
-                                pm4.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
+                                pm1, pm2, pm3, pm4, pm5 = st.columns(5)
+                                pm1.metric("Portfolio Return", f"{portfolio_return_pct:.2f}%")
+                                pm2.metric("Portfolio PnL", f"${portfolio_pnl:,.2f}")
+                                pm3.metric("Combined Profit Factor", f"{port_metrics['Profit Factor']:.2f}")
+                                pm4.metric("Combined Win Rate", f"{port_metrics['Win Rate [%]']:.2f}%")
+                                pm5.metric("Total Portfolio Trades", f"{port_metrics['Total Trades']}")
 
                                 # Render Portfolio Monte Carlo if available
                                 if p_mc_results:
@@ -1960,6 +2018,45 @@ if active_tab == "Run Backtest":
                                             'Count': counts
                                         }, index=bin_labels)
                                         st.bar_chart(port_hist_df, use_container_width=True)
+
+                                # 4. Display Stock Consolidation
+                                st.markdown("---")
+                                st.subheader("Individual Asset Performance Consolidation")
+                                st.write("Consolidated performance metrics for each unique stock/dataset across all tested sub-intervals.")
+                                
+                                if not stock_summary_df.empty:
+                                    stock_summary_df = stock_summary_df.sort_values(by="Cumulative Return [%]", ascending=False)
+                                    
+                                    # Highlight returns
+                                    def highlight_pos_neg(val):
+                                        try:
+                                            color = 'rgba(0, 255, 0, 0.1)' if float(val) > 0 else 'rgba(255, 0, 0, 0.1)'
+                                            return f'background-color: {color}'
+                                        except:
+                                            return ''
+                                            
+                                    st.dataframe(
+                                        stock_summary_df.style.map(highlight_pos_neg, subset=["Cumulative Return [%]", "Total PnL ($)"]), 
+                                        use_container_width=True
+                                    )
+                                    
+                                    # Plotly Bar Chart comparing returns
+                                    import plotly.express as px
+                                    fig_stock = px.bar(
+                                        stock_summary_df,
+                                        x="Stock",
+                                        y="Cumulative Return [%]",
+                                        color="Cumulative Return [%]",
+                                        color_continuous_scale=px.colors.diverging.RdYlGn,
+                                        title="Asset Return Comparison under current Strategy",
+                                        text_auto='.2f'
+                                    )
+                                    fig_stock.update_layout(
+                                        plot_bgcolor='#0e1117',
+                                        paper_bgcolor='#0e1117',
+                                        font_color='white'
+                                    )
+                                    st.plotly_chart(fig_stock, use_container_width=True)
 
                             if "Cumulative Return [%]" in results_df.columns:
                                 import plotly.express as px
