@@ -273,6 +273,12 @@ for label, icon in zip(TABS, TAB_ICONS):
 st.sidebar.divider()
 
 st.sidebar.header("Control Panel")
+if st.session_state.get('bulk_running', False):
+    if st.sidebar.button("🛑 STOP BULK TEST", type="primary", use_container_width=True, help="Stop the currently running bulk backtesting loop immediately."):
+        with open("stop_flag.txt", "w") as f:
+            f.write("stop")
+        st.sidebar.warning("Stop signal sent! Waiting for loop to terminate...")
+
 if st.sidebar.button("Stop Server", type="primary", use_container_width=True, help="Click to shut down the Streamlit server. You will need to use your terminal to start it again."):
     st.sidebar.warning("Shutting down the server...")
     logger.info("Server stopped manually via sidebar button.")
@@ -1627,17 +1633,33 @@ if active_tab == "Run Backtest":
             else:
                 with st.spinner(f"Running Bulk {split_freq} tests across {len(selected_bulk_data)} datasets..."):
                     try:
+                        st.session_state['bulk_running'] = True
+                        if os.path.exists("stop_flag.txt"):
+                            try: os.remove("stop_flag.txt")
+                            except: pass
+                        
                         all_stats = []
                         all_trades_lists = []
+                        
+                        # Initialize global progress indicators
+                        progress_bar_overall = st.progress(0.0)
+                        status_text = st.empty()
+                        completed_tests = 0
 
                         # 1. Load Strategy
                         strat_class = load_strategy(os.path.join(strategies_dir, selected_bulk_strat))
                         if not strat_class:
                             st.error("No valid Strategy class found in the file.")
+                            st.session_state['bulk_running'] = False
                             st.stop()
 
                         # 2. Iterate over all selected datasets
                         for ds_idx, dataset_file in enumerate(selected_bulk_data):
+                            if os.path.exists("stop_flag.txt"):
+                                st.warning("Bulk testing aborted by user.")
+                                try: os.remove("stop_flag.txt")
+                                except: pass
+                                break
                             st.write(f"**Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: `{dataset_file}`**")
 
                             df = pd.read_csv(os.path.join(data_dir, dataset_file))
@@ -1740,11 +1762,13 @@ if active_tab == "Run Backtest":
                             st.info(f"Generated {len(chunks)} {split_freq} slices for `{dataset_file}`. Executing engine...")
 
                             # 4. Execute Loop for this dataset
-                            progress_bar = st.progress(0)
-                            total_chunks = len(chunks)
-
                             for i, (chunk_label, chunk_df) in enumerate(chunks):
+                                if os.path.exists("stop_flag.txt"):
+                                    break
+                                
                                 if len(chunk_df) < 5:  # Skip tiny chunks (e.g. half days with no data)
+                                    completed_tests += 1
+                                    progress_bar_overall.progress(min(completed_tests / total_tests, 1.0))
                                     continue
 
                                 bt = Backtest(
@@ -1775,7 +1799,11 @@ if active_tab == "Run Backtest":
                                 all_stats.append(chunk_metrics_series)
 
                                 # Update progress
-                                progress_bar.progress((i + 1) / total_chunks)
+                                completed_tests += 1
+                                progress_bar_overall.progress(min(completed_tests / total_tests, 1.0))
+                                status_text.write(f"**Progress**: Completed {completed_tests}/{total_tests} runs. Processing `{chunk_label}`...")
+                                import time
+                                time.sleep(0.005) # Yield CPU control to keep browser/Tornado responsive
 
                         # 5. Aggregate and Display
                         if all_stats:
@@ -1882,6 +1910,11 @@ if active_tab == "Run Backtest":
 
                     except Exception as e:
                         st.error(f"Error during bulk testing: {e}")
+                    finally:
+                        st.session_state['bulk_running'] = False
+                        if os.path.exists("stop_flag.txt"):
+                            try: os.remove("stop_flag.txt")
+                            except: pass
 
 # --- TAB 4: Results & Analytics ---
 if active_tab == "Results & Analytics":
