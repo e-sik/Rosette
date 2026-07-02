@@ -486,7 +486,8 @@ def calculate_strategy_metrics(stats, trades_df):
 
 def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
     """
-    Consolidates backtest metrics for an individual stock across all its trade logs.
+    Consolidates backtest metrics for an individual stock across all its trade logs,
+    and runs a local Monte Carlo simulation for individual asset risk assessment.
     """
     if stock_trades.empty:
         return {
@@ -495,7 +496,10 @@ def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
             'Win Rate [%]': 0.0,
             'Profit Factor': 0.0,
             'Total PnL ($)': 0.0,
-            'Cumulative Return [%]': 0.0
+            'Cumulative Return [%]': 0.0,
+            'MC Expected Final Equity ($)': init_cash,
+            'MC Median Drawdown (%)': 0.0,
+            'MC 95% VaR Drawdown (%)': 0.0
         }
     
     ret_col = next((c for c in stock_trades.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
@@ -514,13 +518,30 @@ def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
     
     profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
     
+    # Run local Monte Carlo for this stock
+    mc_expected_equity = init_cash
+    mc_median_dd = 0.0
+    mc_var_dd = 0.0
+    
+    if ret_col:
+        returns = stock_trades[ret_col].values / 100.0
+        if len(returns) >= 5:
+            mc_res = run_monte_carlo_sim(returns, n_simulations=200, confidence_level=95, start_capital=init_cash)
+            if mc_res:
+                mc_expected_equity = mc_res['expected_final_equity']
+                mc_median_dd = mc_res['median_max_drawdown']
+                mc_var_dd = mc_res['var_max_drawdown']
+                
     return {
         'Stock': stock_name,
         'Total Trades': len(stock_trades),
         'Win Rate [%]': win_rate,
         'Profit Factor': profit_factor,
         'Total PnL ($)': total_pnl,
-        'Cumulative Return [%]': cum_ret
+        'Cumulative Return [%]': cum_ret,
+        'MC Expected Final Equity ($)': mc_expected_equity,
+        'MC Median Drawdown (%)': mc_median_dd,
+        'MC 95% VaR Drawdown (%)': mc_var_dd
     }
 
 def run_monte_carlo_sim(returns, n_simulations=1000, confidence_level=95, start_capital=10000):
@@ -2057,6 +2078,51 @@ if active_tab == "Run Backtest":
                                         font_color='white'
                                     )
                                     st.plotly_chart(fig_stock, use_container_width=True)
+                                    
+                                    # 5. Combined Equity Line Chart Comparison
+                                    equity_dfs = []
+                                    for name, group_df in stock_groups:
+                                        exit_col = next((c for c in group_df.columns if c.lower() in ['exittime', 'exit_time']), None)
+                                        ret_col = next((c for c in group_df.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
+                                        if not group_df.empty and exit_col and ret_col:
+                                            trades_sorted = group_df.sort_values(by=exit_col)
+                                            cum_rets = (1 + trades_sorted[ret_col] / 100.0).cumprod() - 1
+                                            cum_rets_pct = cum_rets * 100.0
+                                            
+                                            stock_eq = pd.Series(cum_rets_pct.values, index=pd.to_datetime(trades_sorted[exit_col]), name=name)
+                                            stock_eq = stock_eq[~stock_eq.index.duplicated(keep='last')]
+                                            equity_dfs.append(stock_eq)
+                                            
+                                    if equity_dfs:
+                                        portfolio_eq_df = pd.concat(equity_dfs, axis=1)
+                                        portfolio_eq_df.sort_index(inplace=True)
+                                        portfolio_eq_df.ffill(inplace=True)
+                                        portfolio_eq_df.fillna(0.0, inplace=True)
+                                        
+                                        if len(portfolio_eq_df) > 1000:
+                                            indices = np.linspace(0, len(portfolio_eq_df) - 1, 1000, dtype=int)
+                                            portfolio_eq_df_plot = portfolio_eq_df.iloc[indices]
+                                        else:
+                                            portfolio_eq_df_plot = portfolio_eq_df
+                                            
+                                        st.markdown("---")
+                                        st.subheader("Asset Cumulative Equity Curve Comparison")
+                                        st.write("Chronological comparison of cumulative percentage returns for each asset under the current strategy.")
+                                        
+                                        fig_eq = px.line(
+                                            portfolio_eq_df_plot,
+                                            x=portfolio_eq_df_plot.index,
+                                            y=portfolio_eq_df_plot.columns,
+                                            title="Asset Return Trajectory over Time",
+                                            labels={"value": "Cumulative Return (%)", "index": "Time"}
+                                        )
+                                        fig_eq.update_layout(
+                                            plot_bgcolor='#0e1117',
+                                            paper_bgcolor='#0e1117',
+                                            font_color='white',
+                                            legend_title="Asset"
+                                        )
+                                        st.plotly_chart(fig_eq, use_container_width=True)
 
                             if "Cumulative Return [%]" in results_df.columns:
                                 import plotly.express as px
