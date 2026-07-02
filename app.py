@@ -484,6 +484,76 @@ def calculate_strategy_metrics(stats, trades_df):
     
     return metrics
 
+def calculate_equity_metrics(equity_series, init_cash):
+    """
+    Computes institutional-grade risk/return ratios from a daily-resampled equity curve.
+    """
+    if equity_series.empty:
+        return {
+            'Cumulative Return [%]': 0.0,
+            'Annualized Return [%]': 0.0,
+            'Max Drawdown [%]': 0.0,
+            'Avg Drawdown [%]': 0.0,
+            'Sharpe Ratio': 0.0,
+            'Sortino Ratio': 0.0,
+            'Calmar Ratio': 0.0
+        }
+    
+    # Cumulative Return
+    final_eq = equity_series.iloc[-1]
+    cum_ret = (final_eq / init_cash - 1) * 100.0 if init_cash > 0 else 0.0
+    
+    # Drawdowns
+    peaks = np.maximum.accumulate(equity_series.values)
+    drawdowns = (equity_series.values - peaks) / peaks if len(peaks) > 0 else np.array([0.0])
+    max_dd = float(np.min(drawdowns) * 100.0) if len(drawdowns) > 0 else 0.0
+    avg_dd = float(np.mean(drawdowns) * 100.0) if len(drawdowns) > 0 else 0.0
+    
+    # Resample to daily for annualized Sharpe/Sortino/Calmar
+    try:
+        daily_eq = equity_series.resample('D').last().ffill()
+        daily_eq = daily_eq[~daily_eq.index.duplicated(keep='last')]
+        daily_eq.fillna(method='bfill', inplace=True)
+        daily_rets = daily_eq.pct_change().dropna()
+        
+        # Annualized Sharpe
+        mean_ret = daily_rets.mean()
+        std_ret = daily_rets.std()
+        sharpe = (mean_ret / std_ret * np.sqrt(252)) if std_ret > 0 else 0.0
+        if np.isnan(sharpe) or np.isinf(sharpe): sharpe = 0.0
+        
+        # Annualized Sortino
+        downside_rets = daily_rets[daily_rets < 0]
+        downside_std = downside_rets.std()
+        sortino = (mean_ret / downside_std * np.sqrt(252)) if downside_std > 0 else 0.0
+        if np.isnan(sortino) or np.isinf(sortino): sortino = 0.0
+        
+        # Annualized Return (CAGR)
+        n_days = (equity_series.index[-1] - equity_series.index[0]).days
+        years = n_days / 365.25
+        cagr = 0.0
+        if years > 0 and final_eq > 0 and init_cash > 0:
+            cagr = ((final_eq / init_cash) ** (1 / years) - 1) * 100.0
+        else:
+            cagr = cum_ret
+            
+        # Calmar Ratio
+        calmar = (cagr / abs(max_dd)) if max_dd != 0 else 0.0
+        if np.isnan(calmar) or np.isinf(calmar): calmar = 0.0
+        
+    except Exception:
+        sharpe, sortino, calmar, cagr = 0.0, 0.0, 0.0, cum_ret
+        
+    return {
+        'Cumulative Return [%]': cum_ret,
+        'Annualized Return [%]': cagr,
+        'Max Drawdown [%]': max_dd,
+        'Avg Drawdown [%]': avg_dd,
+        'Sharpe Ratio': sharpe,
+        'Sortino Ratio': sortino,
+        'Calmar Ratio': calmar
+    }
+
 def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
     """
     Consolidates backtest metrics for an individual stock across all its trade logs,
@@ -494,9 +564,16 @@ def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
             'Stock': stock_name,
             'Total Trades': 0,
             'Win Rate [%]': 0.0,
-            'Profit Factor': 0.0,
+            'Profit/Loss Ratio': 0.0,
+            'Expectancy per Trade [%]': 0.0,
             'Total PnL ($)': 0.0,
             'Cumulative Return [%]': 0.0,
+            'Annualized Return (CAGR) [%]': 0.0,
+            'Max Drawdown [%]': 0.0,
+            'Avg Drawdown [%]': 0.0,
+            'Sharpe Ratio': 0.0,
+            'Sortino Ratio': 0.0,
+            'Calmar Ratio': 0.0,
             'MC Expected Final Equity ($)': init_cash,
             'MC Median Drawdown (%)': 0.0,
             'MC 95% VaR Drawdown (%)': 0.0
@@ -504,19 +581,41 @@ def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
     
     ret_col = next((c for c in stock_trades.columns if c.lower() in ['returnpct', 'return_pct', 'return %']), None)
     pnl_col = next((c for c in stock_trades.columns if c.lower() in ['pnl', 'p_n_l', 'profit_loss']), None)
+    exit_col = next((c for c in stock_trades.columns if c.lower() in ['exittime', 'exit_time']), None)
     
     total_pnl = float(stock_trades[pnl_col].sum()) if pnl_col else 0.0
-    cum_ret = (total_pnl / init_cash) * 100.0 if init_cash > 0 else 0.0
     
     win_trades = stock_trades[stock_trades[ret_col] > 0] if (ret_col and not stock_trades.empty) else pd.DataFrame()
     loss_trades = stock_trades[stock_trades[ret_col] < 0] if (ret_col and not stock_trades.empty) else pd.DataFrame()
     
     win_rate = (len(win_trades) / len(stock_trades)) * 100.0 if not stock_trades.empty else 0.0
     
-    gross_profit = float(win_trades[pnl_col].sum()) if (pnl_col and not win_trades.empty) else 0.0
-    gross_loss = float(abs(loss_trades[pnl_col].sum())) if (pnl_col and not loss_trades.empty) else 0.0
+    avg_win = float(win_trades[ret_col].mean()) if (ret_col and not win_trades.empty) else 0.0
+    avg_loss = float(abs(loss_trades[ret_col].mean())) if (ret_col and not loss_trades.empty) else 0.0
+    pl_ratio = avg_win / avg_loss if avg_loss > 0 else 0.0
     
-    profit_factor = gross_profit / gross_loss if gross_loss > 0 else (gross_profit if gross_profit > 0 else 0.0)
+    wr_dec = len(win_trades) / len(stock_trades) if not stock_trades.empty else 0.0
+    lr_dec = len(loss_trades) / len(stock_trades) if not stock_trades.empty else 0.0
+    expectancy = (wr_dec * avg_win) - (lr_dec * avg_loss)
+    
+    # Reconstruct chronological equity curve
+    eq_metrics = {}
+    if exit_col and ret_col:
+        try:
+            trades_sorted = stock_trades.sort_values(by=exit_col)
+            cum_compounded = (1 + trades_sorted[ret_col] / 100.0).cumprod()
+            equity_series = pd.Series(init_cash * cum_compounded.values, index=pd.to_datetime(trades_sorted[exit_col]))
+            eq_metrics = calculate_equity_metrics(equity_series, init_cash)
+        except Exception:
+            pass
+            
+    cum_ret = eq_metrics.get('Cumulative Return [%]', (total_pnl / init_cash) * 100.0 if init_cash > 0 else 0.0)
+    cagr = eq_metrics.get('Annualized Return [%]', cum_ret)
+    max_dd = eq_metrics.get('Max Drawdown [%]', 0.0)
+    avg_dd = eq_metrics.get('Avg Drawdown [%]', 0.0)
+    sharpe = eq_metrics.get('Sharpe Ratio', 0.0)
+    sortino = eq_metrics.get('Sortino Ratio', 0.0)
+    calmar = eq_metrics.get('Calmar Ratio', 0.0)
     
     # Run local Monte Carlo for this stock
     mc_expected_equity = init_cash
@@ -536,9 +635,16 @@ def calculate_stock_consolidation(stock_name, stock_trades, init_cash):
         'Stock': stock_name,
         'Total Trades': len(stock_trades),
         'Win Rate [%]': win_rate,
-        'Profit Factor': profit_factor,
+        'Profit/Loss Ratio': pl_ratio,
+        'Expectancy per Trade [%]': expectancy,
         'Total PnL ($)': total_pnl,
         'Cumulative Return [%]': cum_ret,
+        'Annualized Return (CAGR) [%]': cagr,
+        'Max Drawdown [%]': max_dd,
+        'Avg Drawdown [%]': avg_dd,
+        'Sharpe Ratio': sharpe,
+        'Sortino Ratio': sortino,
+        'Calmar Ratio': calmar,
         'MC Expected Final Equity ($)': mc_expected_equity,
         'MC Median Drawdown (%)': mc_median_dd,
         'MC 95% VaR Drawdown (%)': mc_var_dd
