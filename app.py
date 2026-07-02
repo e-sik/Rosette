@@ -1714,6 +1714,25 @@ if active_tab == "Run Backtest":
                         progress_bar_overall = st.progress(0.0)
                         status_text = st.empty()
                         completed_tests = 0
+                        
+                        import datetime
+                        log_container = st.empty()
+                        log_messages = []
+                        
+                        def add_log(msg, type="info"):
+                            color_map = {
+                                "info": "#00ff66",   # Green
+                                "warning": "#ffcc00", # Yellow
+                                "error": "#ff3333"    # Red
+                            }
+                            color = color_map.get(type, "#00ff66")
+                            timestamp = datetime.datetime.now().strftime("%H:%M:%S")
+                            log_messages.append(f"<span style='color: #888;'>[{timestamp}]</span> <span style='color: {color};'>[{type.upper()}]</span> {msg}")
+                            if len(log_messages) > 150:
+                                log_messages.pop(0)
+                            # Display latest log at top
+                            log_html = f"<div style='height: 150px; overflow-y: auto; border: 1px solid #262730; padding: 10px; font-family: monospace; font-size: 0.85rem; background-color: #0e1117; color: #fff; border-radius: 5px; line-height: 1.5;'>{'<br>'.join(reversed(log_messages))}</div>"
+                            log_container.markdown(log_html, unsafe_allow_html=True)
 
                         # 1. Load Strategy
                         strat_class = load_strategy(os.path.join(strategies_dir, selected_bulk_strat))
@@ -1729,7 +1748,7 @@ if active_tab == "Run Backtest":
                                 try: os.remove("stop_flag.txt")
                                 except: pass
                                 break
-                            st.write(f"**Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: `{dataset_file}`**")
+                            add_log(f"Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: {dataset_file}", "info")
 
                             df = pd.read_csv(os.path.join(data_dir, dataset_file))
                             df.columns = df.columns.str.strip()
@@ -1745,7 +1764,7 @@ if active_tab == "Run Backtest":
                                     break
 
                             if not dt_col:
-                                st.warning(f"Skipping `{dataset_file}`: No datetime column found.")
+                                add_log(f"Skipping {dataset_file}: No datetime column found.", "warning")
                                 continue
 
                             df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
@@ -1760,11 +1779,11 @@ if active_tab == "Run Backtest":
                                 median_diff = df.index.to_series().diff().median()
 
                                 if split_freq == "Intraday (Time Windows)" and median_diff >= pd.Timedelta(days=1):
-                                    st.error(f"Granularity Mismatch for `{dataset_file}`: You requested an **Intraday** split, but this dataset appears to only contain **Daily** (or higher) candles. Skipping.")
+                                    add_log(f"Granularity Mismatch for {dataset_file}: You requested an Intraday split, but this dataset appears to only contain Daily candles. Skipping.", "error")
                                     continue
 
                                 if split_freq == "Daily" and median_diff >= pd.Timedelta(days=7):
-                                    st.error(f"Granularity Mismatch for `{dataset_file}`: You requested a **Daily** split, but this dataset appears to only contain **Weekly/Monthly** candles. Skipping.")
+                                    add_log(f"Granularity Mismatch for {dataset_file}: You requested a Daily split, but this dataset appears to only contain Weekly/Monthly candles. Skipping.", "error")
                                     continue
 
                             # Apply DateTime Slicing
@@ -1775,10 +1794,10 @@ if active_tab == "Run Backtest":
                                     mask = (df.index >= start_dt_pd) & (df.index <= end_dt_pd)
                                     df = df.loc[mask]
                                     if df.empty:
-                                        st.warning(f"DateTime slice resulted in an empty dataset for {dataset_file}.")
+                                        add_log(f"DateTime slice resulted in an empty dataset for {dataset_file}.", "warning")
                                         continue
                                 except Exception as e:
-                                    st.warning(f"Error applying datetime slice: {e}. Running on full dataset.")
+                                    add_log(f"Error applying datetime slice: {e}. Running on full dataset.", "warning")
 
 
                             # 3. Create Chunks
@@ -1804,7 +1823,7 @@ if active_tab == "Run Backtest":
                                                 label = f"{sym_name} | {date} ({s_str[:5]}-{e_str[:5]})"
                                                 chunks.append((label, window_df))
                                         except Exception as e:
-                                            st.warning(f"Failed to slice window {s_str}-{e_str} on {date}: {e}")
+                                            add_log(f"Failed to slice window {s_str}-{e_str} on {date}: {e}", "warning")
                             elif split_freq == "Resample Timeframes":
                                 for tf in bulk_resample_tfs:
                                     try:
@@ -1822,13 +1841,13 @@ if active_tab == "Run Backtest":
                                         if not resampled_df.empty:
                                             chunks.append((f"{sym_name} | TF: {tf}", resampled_df))
                                     except Exception as e:
-                                        st.warning(f"Failed to resample `{dataset_file}` to `{tf}`: {e}")
+                                        add_log(f"Failed to resample {dataset_file} to {tf}: {e}", "warning")
 
                             if not chunks:
-                                st.warning(f"No valid data chunks found to process in `{dataset_file}`.")
+                                add_log(f"No valid data chunks found to process in {dataset_file}.", "warning")
                                 continue
 
-                            st.info(f"Generated {len(chunks)} {split_freq} slices for `{dataset_file}`. Executing engine...")
+                            add_log(f"Generated {len(chunks)} {split_freq} slices for {dataset_file}. Executing engine...", "info")
 
                             # 4. Execute Loop for this dataset
                             for i, (chunk_label, chunk_df) in enumerate(chunks):
