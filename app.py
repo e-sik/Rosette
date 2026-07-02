@@ -1368,11 +1368,15 @@ if active_tab == "Run Backtest":
                         # Generate and save Bokeh interactive chart
                         plot_file = os.path.abspath(os.path.join("results", f"{report_name}_plot.html"))
                         if bt is not None:
-                            try:
-                                bt.plot(filename=plot_file, open_browser=False)
-                            except Exception as plot_err:
-                                st.warning(f"Failed to generate interactive Bokeh chart: {plot_err}")
+                            if len(df) <= 10000:
+                                try:
+                                    bt.plot(filename=plot_file, open_browser=False)
+                                except Exception as plot_err:
+                                    st.warning(f"Failed to generate interactive Bokeh chart: {plot_err}")
+                                    plot_file = None
+                            else:
                                 plot_file = None
+                                st.info("Interactive chart disabled for datasets > 10,000 bars to prevent browser lagging. Use a smaller date range or Resample to enable it.")
                         else:
                             plot_file = None
 
@@ -2387,7 +2391,15 @@ if active_tab == "Optimize Parameters":
                                 
                                 # Save Plot natively
                                 plot_file = os.path.join(opt_dir, f"{report_name}_plot.html")
-                                bt.plot(filename=plot_file, open_browser=False, resample=False)
+                                has_plot = False
+                                if len(df) <= 10000:
+                                    try:
+                                        bt.plot(filename=plot_file, open_browser=False, resample=False)
+                                        has_plot = True
+                                    except Exception as plot_err:
+                                        st.warning(f"Could not generate interactive plot: {plot_err}")
+                                else:
+                                    st.info("Winning strategy interactive chart disabled for datasets > 10,000 rows to prevent browser lagging.")
                                 
                                 # Save Heatmaps natively
                                 heatmap_file = os.path.join(opt_dir, f"{report_name}_heatmap.html")
@@ -2396,10 +2408,11 @@ if active_tab == "Optimize Parameters":
                                 except Exception as heatmap_err:
                                     st.warning(f"Could not generate interactive heatmap: {heatmap_err}")
                                 
-                                st.subheader("Winning Strategy Chart")
-                                with open(plot_file, "r", encoding='utf-8') as f:
-                                    html_content = f.read()
-                                    components.html(html_content, height=800, scrolling=True)
+                                if has_plot and os.path.exists(plot_file):
+                                    st.subheader("Winning Strategy Chart")
+                                    with open(plot_file, "r", encoding='utf-8') as f:
+                                        html_content = f.read()
+                                        components.html(html_content, height=800, scrolling=True)
                                     
                                 if os.path.exists(heatmap_file):
                                     st.markdown("---")
