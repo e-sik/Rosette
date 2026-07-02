@@ -571,12 +571,18 @@ def render_unified_dashboard(run_name, metrics, trades_df, plot_html_path, mc_re
             p_mc.yaxis.major_label_text_color = "white"
             p_mc.grid.grid_line_color = "#333333"
             
+            n_points = len(all_eq_curves[0])
+            if n_points > 500:
+                plot_indices = np.linspace(0, n_points - 1, 500, dtype=int)
+            else:
+                plot_indices = np.arange(n_points)
+
             for idx in sample_indices:
                 curve = all_eq_curves[idx]
-                p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
+                p_mc.line(list(plot_indices), list(curve[plot_indices] if n_points > 500 else curve), line_width=1, alpha=0.3, color="gray")
                 
             avg_curve = np.mean(all_eq_curves, axis=0)
-            p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
+            p_mc.line(list(plot_indices), list(avg_curve[plot_indices] if n_points > 500 else avg_curve), line_width=4, color="#00d4ff", legend_label="Average Path")
             
             p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
             p_mc.legend.location = "top_left"
@@ -626,7 +632,7 @@ def render_unified_dashboard(run_name, metrics, trades_df, plot_html_path, mc_re
                 return ''
                 
         pnl_col = next((c for c in trades_df.columns if c.lower() in ['pnl', 'p_n_l', 'profit_loss']), None)
-        if pnl_col:
+        if pnl_col and len(trades_df) <= 500:
             st.dataframe(trades_df.style.map(highlight_pnl, subset=[pnl_col]), use_container_width=True)
         else:
             st.dataframe(trades_df, use_container_width=True)
@@ -1449,7 +1455,13 @@ if active_tab == "Run Backtest":
                                     final_alpha = strat_ret_pct.iloc[-1] - bm_ret_pct.iloc[-1]
                                     a_col1, a_col2 = st.columns([8, 2])
                                     with a_col1:
-                                        st.line_chart(alpha_df, use_container_width=True)
+                                        if len(alpha_df) > 1000:
+                                            import numpy as np
+                                            indices = np.linspace(0, len(alpha_df) - 1, 1000, dtype=int)
+                                            alpha_df_plot = alpha_df.iloc[indices]
+                                        else:
+                                            alpha_df_plot = alpha_df
+                                        st.line_chart(alpha_df_plot, use_container_width=True)
                                     with a_col2:
                                         st.metric("Strategy Total", f"{strat_ret_pct.iloc[-1]:.2f}%")
                                         st.metric("Benchmark Total", f"{bm_ret_pct.iloc[-1]:.2f}%")
@@ -2068,12 +2080,18 @@ if active_tab == "Results & Analytics":
                                                 p_mc.yaxis.major_label_text_color = "white"
                                                 p_mc.grid.grid_line_color = "#333333"
                                                 
+                                                n_points = len(all_eq_curves[0])
+                                                if n_points > 500:
+                                                    plot_indices = np.linspace(0, n_points - 1, 500, dtype=int)
+                                                else:
+                                                    plot_indices = np.arange(n_points)
+
                                                 for s_idx in sample_idx:
                                                     curve = all_eq_curves[s_idx]
-                                                    p_mc.line(list(range(len(curve))), curve, line_width=1, alpha=0.3, color="gray")
+                                                    p_mc.line(list(plot_indices), list(curve[plot_indices] if n_points > 500 else curve), line_width=1, alpha=0.3, color="gray")
                                                     
                                                 avg_curve = np.mean(all_eq_curves, axis=0)
-                                                p_mc.line(list(range(len(avg_curve))), avg_curve, line_width=4, color="#00d4ff", legend_label="Average Path")
+                                                p_mc.line(list(plot_indices), list(avg_curve[plot_indices] if n_points > 500 else avg_curve), line_width=4, color="#00d4ff", legend_label="Average Path")
                                                 
                                                 p_mc.yaxis.formatter = NumeralTickFormatter(format="$0,0")
                                                 p_mc.legend.location = "top_left"
