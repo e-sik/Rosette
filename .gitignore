@@ -40,6 +40,7 @@ data/
 results/
 opt_results/
 application-logs/
+scratch/
 __pycache__/
 .pytest_cache/
 

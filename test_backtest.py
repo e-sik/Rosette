@@ -23,17 +23,25 @@ class SmaCross(Strategy):
             self.position.close()
             self.sell()
 
-def test_backtest_with_csv(csv_path):
-    print(f"Loading data from {csv_path}...")
-    # Load DataFrame
-    df = pd.read_csv(csv_path)
+def test_backtest_dataset(data_path):
+    print(f"Loading data from {data_path}...")
+    ext = os.path.splitext(data_path)[1].lower()
+    if ext == '.parquet':
+        df = pd.read_parquet(data_path)
+        if df.index.name and df.index.name.lower() in ['date', 'time', 'datetime', 'timestamp']:
+            df = df.reset_index()
+    else:
+        df = pd.read_csv(data_path)
     
-    # Needs a DateTime index
-    df['datetime'] = pd.to_datetime(df['datetime'])
-    df.set_index('datetime', inplace=True)
+    df.columns = df.columns.str.strip()
+    col_map = {c.lower(): c.capitalize() for c in df.columns}
+    df.rename(columns=col_map, inplace=True)
     
-    # Capitalize the columns needed by Backtesting.py
-    df.rename(columns={'open': 'Open', 'high': 'High', 'low': 'Low', 'close': 'Close', 'volume': 'Volume'}, inplace=True)
+    dt_col = next((c for c in df.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
+    if dt_col:
+        df[dt_col] = pd.to_datetime(df[dt_col], format='mixed')
+        df.set_index(dt_col, inplace=True)
+        df.sort_index(inplace=True)
 
     print("Running backtest...")
     bt = Backtest(df, SmaCross, commission=.002, exclusive_orders=True)
@@ -44,8 +52,11 @@ def test_backtest_with_csv(csv_path):
 
 if __name__ == '__main__':
     data_dir = r"e:\AI\Trade\Antigravity\data"
-    csv_file = os.path.join(data_dir, "SBIN_NSE_in_daily.csv")
-    if os.path.exists(csv_file):
-        test_backtest_with_csv(csv_file)
+    parquet_file = os.path.join(data_dir, "MC_3BBLACKBIO_1m.parquet")
+    csv_file = os.path.join(data_dir, "MC_ANTHEM_1m.csv")
+    
+    target_file = parquet_file if os.path.exists(parquet_file) else csv_file
+    if os.path.exists(target_file):
+        test_backtest_dataset(target_file)
     else:
-        print(f"Error: Could not find {csv_file}")
+        print(f"Error: Could not find target file {target_file}")

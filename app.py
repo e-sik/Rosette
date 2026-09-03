@@ -10,6 +10,25 @@ import logging
 from backtesting import Strategy, Backtest
 import backtesting.backtesting as bt_module
 
+def read_data_file(filepath, nrows=None, usecols=None):
+    """
+    Universal dataset loader for CSV and Parquet files into a pandas DataFrame.
+    """
+    ext = os.path.splitext(filepath)[1].lower()
+    if ext == '.parquet':
+        df = pd.read_parquet(filepath, columns=usecols)
+        if nrows is not None and nrows > 0:
+            df = df.iloc[:nrows]
+            
+        if df.index.name and df.index.name.lower() in ['date', 'time', 'datetime', 'timestamp', 'unnamed: 0']:
+            df = df.reset_index()
+        elif not any(c.lower() in ['date', 'time', 'datetime', 'timestamp', 'unnamed: 0'] for c in df.columns):
+            if isinstance(df.index, pd.DatetimeIndex) or (hasattr(df.index, 'name') and df.index.name):
+                df = df.reset_index()
+    else:
+        df = pd.read_csv(filepath, nrows=nrows, usecols=usecols)
+    return df
+
 class StreamlitTQDM:
     def __init__(self, iterable=None, total=None, desc=None, leave=False, mininterval=2, **kwargs):
         self.iterable = iterable
@@ -1344,13 +1363,13 @@ if active_tab == "Run Backtest":
             data_dir = "data"
             data_files = []
             if os.path.exists(data_dir):
-                data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')]
+                data_files = [f for f in os.listdir(data_dir) if f.lower().endswith(('.csv', '.parquet'))]
 
             if not data_files:
                 st.warning("No data found. Go to 'Fetch Data' tab first.")
                 selected_data = None
             else:
-                selected_data = st.selectbox("Dataset (CSV)", data_files)
+                selected_data = st.selectbox("Dataset (CSV / Parquet)", data_files)
 
                 # Timeframe resampling option
                 resample_tf = st.selectbox(
@@ -1362,7 +1381,7 @@ if active_tab == "Run Backtest":
                 # --- Date Slicer UI ---
                 if selected_data:
                     try:
-                        df_preview = pd.read_csv(os.path.join(data_dir, selected_data))
+                        df_preview = read_data_file(os.path.join(data_dir, selected_data))
                         df_preview.columns = df_preview.columns.str.strip()
                         dt_col = None
                         for col in df_preview.columns:
@@ -1494,7 +1513,7 @@ if active_tab == "Run Backtest":
                 with st.spinner("Executing user script..."):
                     try:
                         # 1. Load Data
-                        df = pd.read_csv(os.path.join(data_dir, selected_data))
+                        df = read_data_file(os.path.join(data_dir, selected_data))
 
                         # Ensure column names are stripped of whitespace
                         df.columns = df.columns.str.strip()
@@ -1608,7 +1627,8 @@ if active_tab == "Run Backtest":
                             os.makedirs("results")
 
                         timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-                        report_name = f"{selected_strategy_file.replace('.py', '')}_{selected_data.replace('.csv', '')}_{timestamp}"
+                        clean_dataset_name = os.path.splitext(selected_data)[0]
+                        report_name = f"{selected_strategy_file.replace('.py', '')}_{clean_dataset_name}_{timestamp}"
 
                         # Save stats
                         stats_file = os.path.join("results", f"{report_name}_stats.csv")
@@ -1729,7 +1749,7 @@ if active_tab == "Run Backtest":
         b_col1, b_col2 = st.columns(2)
         with b_col1:
             data_dir = "data"
-            data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] if os.path.exists(data_dir) else []
+            data_files = [f for f in os.listdir(data_dir) if f.lower().endswith(('.csv', '.parquet'))] if os.path.exists(data_dir) else []
 
             st.info("**Note:** When selecting multiple datasets, ensure they all share the same Native Granularity (e.g., all 5-minute tickers, or all Daily).")
             selected_bulk_data = st.multiselect("Select Datasets", data_files, key="bulk_data", help="Select one or more historical datasets to test against.")
@@ -1739,7 +1759,7 @@ if active_tab == "Run Backtest":
                 try:
                     min_dates, max_dates = [], []
                     for ds in selected_bulk_data:
-                        df_preview = pd.read_csv(os.path.join(data_dir, ds))
+                        df_preview = read_data_file(os.path.join(data_dir, ds))
                         df_preview.columns = df_preview.columns.str.strip()
                         dt_col = next((c for c in df_preview.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
                         if dt_col:
@@ -1829,11 +1849,11 @@ if active_tab == "Run Backtest":
             for ds in selected_bulk_data:
                 try:
                     # Read only index/datetime column for speed
-                    df_temp = pd.read_csv(os.path.join(data_dir, ds), nrows=5)
+                    df_temp = read_data_file(os.path.join(data_dir, ds), nrows=5)
                     df_temp.columns = df_temp.columns.str.strip()
                     dt_col = next((c for c in df_temp.columns if c.lower() in ['date', 'time', 'datetime', 'timestamp']), None)
                     if dt_col:
-                        df_ds = pd.read_csv(os.path.join(data_dir, ds), usecols=[dt_col])
+                        df_ds = read_data_file(os.path.join(data_dir, ds), usecols=[dt_col])
                         df_ds.columns = df_ds.columns.str.strip()
                         df_ds[dt_col] = pd.to_datetime(df_ds[dt_col], format='mixed')
                         df_ds.set_index(dt_col, inplace=True)
@@ -1936,7 +1956,7 @@ if active_tab == "Run Backtest":
                                 break
                             add_log(f"Processing Dataset {ds_idx+1}/{len(selected_bulk_data)}: {dataset_file}", "info")
 
-                            df = pd.read_csv(os.path.join(data_dir, dataset_file))
+                            df = read_data_file(os.path.join(data_dir, dataset_file))
                             df.columns = df.columns.str.strip()
                             col_map = {c.lower(): c.capitalize() for c in df.columns}
                             df.rename(columns=col_map, inplace=True)
@@ -1988,7 +2008,7 @@ if active_tab == "Run Backtest":
 
                             # 3. Create Chunks
                             chunks = []
-                            sym_name = dataset_file.replace('.csv', '')
+                            sym_name = os.path.splitext(dataset_file)[0]
 
                             if split_freq == "Whole Dataset (No Split)":
                                 chunks = [(f"{sym_name} | Full Range", df)]
@@ -2100,7 +2120,7 @@ if active_tab == "Run Backtest":
                             if len(selected_bulk_data) > 1:
                                 target_tag = "Multiple_Datasets"
                             else:
-                                target_tag = selected_bulk_data[0].replace('.csv', '')
+                                target_tag = os.path.splitext(selected_bulk_data[0])[0]
 
                             bulk_report_base = f"BULK_{split_freq}_{selected_bulk_strat.replace('.py', '')}_{target_tag}_{timestamp}"
                             bulk_stats_path = os.path.join(results_dir, f"{bulk_report_base}_stats.csv")
@@ -2143,7 +2163,7 @@ if active_tab == "Run Backtest":
                                         t_start = combined_trades_df['EntryTime'].min()
                                         t_end = combined_trades_df['ExitTime'].max()
                                         st.write(f"**Tested Range**: `{t_start} to {t_end}`")
-                                        st.write(f"**Datasets Tested ({len(selected_bulk_data)})**: `{', '.join([d.replace('.csv', '') for d in selected_bulk_data])[:150]}`")
+                                        st.write(f"**Datasets Tested ({len(selected_bulk_data)})**: `{', '.join([os.path.splitext(d)[0] for d in selected_bulk_data])[:150]}`")
                                     with bp_col3:
                                         st.write(f"**Commission**: `{commission:.4%}`")
                                         st.write(f"**Spread/Slippage**: `{spread}`")
@@ -2761,13 +2781,13 @@ if active_tab == "Optimize Parameters":
     o_col1, o_col2 = st.columns(2)
     with o_col1:
         data_dir = "data"
-        data_files = [f for f in os.listdir(data_dir) if f.endswith('.csv')] if os.path.exists(data_dir) else []
-        selected_opt_data = st.selectbox("Select Dataset", data_files, key="opt_data")
+        data_files = [f for f in os.listdir(data_dir) if f.lower().endswith(('.csv', '.parquet'))] if os.path.exists(data_dir) else []
+        selected_opt_data = st.selectbox("Select Dataset (CSV / Parquet)", data_files, key="opt_data")
         
         # --- Date Slicer UI (from Tab 3) ---
         if selected_opt_data:
             try:
-                df_preview = pd.read_csv(os.path.join(data_dir, selected_opt_data))
+                df_preview = read_data_file(os.path.join(data_dir, selected_opt_data))
                 df_preview.columns = df_preview.columns.str.strip()
                 dt_col = None
                 for col in df_preview.columns:
@@ -2873,7 +2893,7 @@ if active_tab == "Optimize Parameters":
                         with st.spinner(f"Running {opt_method}... this may take a moment depending on range sizes!"):
                             try:
                                 # 1. Prepare Data
-                                df = pd.read_csv(os.path.join(data_dir, selected_opt_data))
+                                df = read_data_file(os.path.join(data_dir, selected_opt_data))
                                 df.columns = df.columns.str.strip()
                                 col_map = {c.lower(): c.capitalize() for c in df.columns}
                                 df.rename(columns=col_map, inplace=True)
@@ -2975,7 +2995,8 @@ if active_tab == "Optimize Parameters":
                                 
                                 # 5. Auto Save to dedicated folder
                                 timestamp = __import__('datetime').datetime.now().strftime("%Y%m%d_%H%M%S")
-                                report_name = f"OPT_{method_arg}_{selected_opt_strat.replace('.py', '')}_{selected_opt_data.replace('.csv', '')}_{timestamp}"
+                                clean_opt_dataset = os.path.splitext(selected_opt_data)[0]
+                                report_name = f"OPT_{method_arg}_{selected_opt_strat.replace('.py', '')}_{clean_opt_dataset}_{timestamp}"
                                 
                                 opt_dir = "opt_results"
                                 if not os.path.exists(opt_dir): os.makedirs(opt_dir)
